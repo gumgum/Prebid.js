@@ -3,6 +3,7 @@ import { registerBidder } from 'src/adapters/bidderFactory'
 import { config } from 'src/config'
 const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
+const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
 
 function _getTimeStamp() {
   return new Date().getTime();
@@ -34,7 +35,20 @@ export const spec = {
    * @return boolean True if this is a valid bid, and false otherwise.
    */
   isBidRequestValid: function (bid) {
-    return !!(bid.params.placementId || (bid.params.member && bid.params.invCode))
+    switch (true) {
+      case !!(params.inImage): break;
+      case !!(params.inScreen): break;
+      case !!(params.inSlot): break;
+      case !!(params['native']): break;
+      default: utils.logWarn(
+        `[GumGum] No product selected for the placement ${placementCode}` +
+        ', please check your implementation.'
+        );
+        return false;
+    }
+    return true;
+
+    // we can also check for throttle here.
   },
   /**
    * Make a server request from the list of BidRequests.
@@ -62,7 +76,9 @@ export const spec = {
       const trackingId = params.inScreen;
       const nativeId = params['native'];
       const slotId = params.inSlot;
-      const bid = { tmax: $$PREBID_GLOBAL$$.cbTimeout };
+      const bid = {
+        // tmax: $$PREBID_GLOBAL$$.cbTimeout
+      };
 
       /* slot/native ads need the placement id */
       switch (true) {
