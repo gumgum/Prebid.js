@@ -5,13 +5,46 @@ const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
 const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
 
+let browserParams = {};
+// const requestCache = {};
+// const throttleTable = {};
+// const defaultThrottle = 3e4;
+
 function _getTimeStamp() {
   return new Date().getTime();
 }
 
+function _getBrowserParams() {
+  let topWindow
+  let topScreen
+  if (browserParams.vw) {
+    // we've already initialized browserParams, just return it.
+    return browserParams
+  }
+
+  try {
+    topWindow = global.top;
+    topScreen = topWindow.screen;
+  } catch (error) {
+    utils.logError(error);
+    return null
+  }
+
+  browserParams = {
+    vw: topWindow.innerWidth,
+    vh: topWindow.innerHeight,
+    sw: topScreen.width,
+    sh: topScreen.height,
+    pu: utils.getTopWindowUrl(),
+    ce: utils.cookiesAreEnabled(),
+    dpr: topWindow.devicePixelRatio || 1
+  }
+  return browserParams
+}
+
 function _getDigiTrustQueryParams() {
   function getDigiTrustId () {
-    var digiTrustUser = (window.DigiTrust && window.DigiTrust.getUser) ? window.DigiTrust.getUser(dtCredentials) : {};
+    var digiTrustUser = (window.DigiTrust && window.DigiTrust.getUser) ? window.DigiTrust.getUser(DT_CREDENTIALS) : {};
     return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || '';
   };
 
@@ -62,15 +95,7 @@ export const spec = {
    * @return ServerRequest Info describing the request to the server.
    */
   buildRequests: function (validBidRequests) {
-    const browserParams = {
-      // vw: topWindow.innerWidth,
-      // vh: topWindow.innerHeight,
-      // sw: topScreen.width,
-      // sh: topScreen.height,
-      pu: utils.getTopWindowUrl(),
-      ce: utils.cookiesAreEnabled(),
-      // dpr: topWindow.devicePixelRatio || 1
-    };
+    const browserParams = _getBrowserParams();
     const bids = [];
 
     utils._each(validBidRequests, bidRequest => {
@@ -83,14 +108,20 @@ export const spec = {
       const trackingId = params.inScreen;
       const nativeId = params['native'];
       const slotId = params.inSlot;
+      const timeout = config.getConfig('bidderTimeout');
       const bid = {
-        // tmax: $$PREBID_GLOBAL$$.cbTimeout
+        tmax: timeout,
         tId: transactionId
-      };
+        // we can add alot more info here like topWindorURL...
+      }
+      const gumgumRequest = {
+        method: 'POST',
+        url: BID_ENDPOINT
+      }
 
       /* set productID in bid object to be sent to GG ad server */
       // should we make sure bids only have one of these set? Else,
-      // it's kinda f'ed up because last product type takes precedence.
+      // it's kinda f'ed up because last product type takes priority.
       if (params.inImage) bid.pi = 1;
       if (params.inScreen) bid.pi = 2;
       if (params.inSlot) bid.pi = 3;
@@ -103,25 +134,16 @@ export const spec = {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      const callback = { jsonp: `$$PREBID_GLOBAL$$.handleGumGumCB['${bidId}']` };
-      CALLBACKS[bidId] = _handleGumGumResponse(cachedBid);
-      const query = Object.assign(callback, browserParams, bid, _getDigiTrustQueryParams());
-      const bidCall = `${bidEndpoint}?${utils.parseQueryStringParameters(query)}`;
-      adloader.loadScript(bidCall);
+      const payload = Object.assign(bid, browserParams, _getDigiTrustQueryParams())
+      const payloadString = JSON.stringify(payload)
+      gumgumRequest.data = payloadString
+
+      // usually we'd make the request to ad server here. We're gonna add it to an array and return
+      // that. Let's see if the prebid API accepts an array of requests as return value.
+      bids.push(gumgumRequest)
     });
 
-    const payload = {
-      // use bidderRequest.bids[] to get bidder-dependent request info
-      // if your bidder supports multiple currencies, use config.getConfig(currency)
-      // to find which one the ad server needs
-      // pull requested transaction ID from bidderRequest.bids[].transactionId
-    }
-    const payloadString = JSON.stringify(payload)
-    return {
-      method: 'POST',
-      url: BID_ENDPOINT,
-      data: payloadString
-    }
+    return bids
   },
   /**
    * Unpack the response from the server into a list of bids.
