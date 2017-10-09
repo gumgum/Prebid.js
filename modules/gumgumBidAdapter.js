@@ -1,97 +1,133 @@
-const bidfactory = require('src/bidfactory');
-const bidmanager = require('src/bidmanager');
-const utils = require('src/utils');
-const adloader = require('src/adloader');
-var adaptermanager = require('src/adaptermanager');
+import * as utils from 'src/utils'
+import { registerBidder } from 'src/adapters/bidderFactory'
+import { config } from 'src/config'
+const BIDDER_CODE = 'gumgum'
+const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
+const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
 
-const BIDDER_CODE = 'gumgum';
-const CALLBACKS = {};
+let browserParams = {};
+// const requestCache = {};
+// const throttleTable = {};
+// const defaultThrottle = 3e4;
 
-const GumgumAdapter = function GumgumAdapter() {
-  const bidEndpoint = `https://g2.gumgum.com/hbid/imp`;
+// function _getTimeStamp() {
+//   return new Date().getTime();
+// }
 
-  let topWindow;
-  let topScreen;
-  let pageViewId;
-  const requestCache = {};
-  const throttleTable = {};
-  const defaultThrottle = 3e4;
-  const dtCredentials = { member: 'YcXr87z2lpbB' };
+function _getBrowserParams() {
+  let topWindow
+  let topScreen
+  if (browserParams.vw) {
+    // we've already initialized browserParams, just return it.
+    return browserParams
+  }
 
   try {
     topWindow = global.top;
     topScreen = topWindow.screen;
   } catch (error) {
-    return utils.logError(error);
+    utils.logError(error);
+    return null
   }
 
-  function _getTimeStamp() {
-    return new Date().getTime();
+  browserParams = {
+    vw: topWindow.innerWidth,
+    vh: topWindow.innerHeight,
+    sw: topScreen.width,
+    sh: topScreen.height,
+    pu: utils.getTopWindowUrl(),
+    ce: utils.cookiesAreEnabled(),
+    dpr: topWindow.devicePixelRatio || 1
   }
+  return browserParams
+}
 
-  function _getDigiTrustQueryParams() {
-    function getDigiTrustId () {
-      var digiTrustUser = (window.DigiTrust && window.DigiTrust.getUser) ? window.DigiTrust.getUser(dtCredentials) : {};
-      return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || '';
-    };
+// TODO: use getConfig()
+function _getDigiTrustQueryParams() {
+  function getDigiTrustId () {
+    var digiTrustUser = (window.DigiTrust && window.DigiTrust.getUser) ? window.DigiTrust.getUser(DT_CREDENTIALS) : {};
+    return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || '';
+  };
 
-    let digiTrustId = getDigiTrustId();
-    // Verify there is an ID and this user has not opted out
-    if (!digiTrustId || (digiTrustId.privacy && digiTrustId.privacy.optout)) {
-      return {};
+  let digiTrustId = getDigiTrustId();
+  // Verify there is an ID and this user has not opted out
+  if (!digiTrustId || (digiTrustId.privacy && digiTrustId.privacy.optout)) {
+    return {};
+  }
+  return {
+    'dt': digiTrustId.id
+  };
+}
+
+export const spec = {
+  code: BIDDER_CODE,
+  aliases: ['gg'], // short code
+  /**
+   * Determines whether or not the given bid request is valid.
+   *
+   * @param {BidRequest} bid The bid params to validate.
+   * @return boolean True if this is a valid bid, and false otherwise.
+   */
+  isBidRequestValid: function (bid) {
+    const {
+      params,
+      adUnitCode
+    } = bid;
+
+    switch (true) {
+      case !!(params.inImage): break;
+      case !!(params.inScreen): break;
+      case !!(params.inSlot): break;
+      case !!(params['native']): break;
+      default: utils.logWarn(
+        `[GumGum] No product selected for the placement ${adUnitCode}` +
+        ', please check your implementation.'
+      );
+        return false;
     }
-    return {
-      'dt': digiTrustId.id
-    };
-  }
+    return true;
 
-  function _callBids({ bids }) {
-    const browserParams = {
-      vw: topWindow.innerWidth,
-      vh: topWindow.innerHeight,
-      sw: topScreen.width,
-      sh: topScreen.height,
-      pu: topWindow.location.href,
-      ce: navigator.cookieEnabled,
-      dpr: topWindow.devicePixelRatio || 1
-    };
+    // we can also check for throttle here.
+  },
+  /**
+   * Make a server request from the list of BidRequests.
+   *
+   * @param {validBidRequests[]} - an array of bids
+   * @return ServerRequest Info describing the request to the server.
+   */
+  buildRequests: function (validBidRequests) {
+    const browserParams = _getBrowserParams();
+    const bids = [];
 
-    utils._each(bids, bidRequest => {
-      const { bidId
-        , params = {}
-        , placementCode
+    utils._each(validBidRequests, bidRequest => {
+      const {
+        // bidId,
+        params = {},
+        // adUnitCode,
+        transactionId
       } = bidRequest;
-      const timestamp = _getTimeStamp();
+      // const timestamp = _getTimeStamp();
       const trackingId = params.inScreen;
       const nativeId = params['native'];
       const slotId = params.inSlot;
-      const bid = { tmax: $$PREBID_GLOBAL$$.cbTimeout };
-
-      /* slot/native ads need the placement id */
-      switch (true) {
-        case !!(params.inImage): bid.pi = 1; break;
-        case !!(params.inScreen): bid.pi = 2; break;
-        case !!(params.inSlot): bid.pi = 3; break;
-        case !!(params['native']): bid.pi = 5; break;
-        default: return utils.logWarn(
-          `[GumGum] No product selected for the placement ${placementCode}` +
-          ', please check your implementation.'
-        );
+      const timeout = config.getConfig('bidderTimeout');
+      const bid = {
+        tmax: timeout,
+        tId: transactionId
+        // we can add alot more info here like topWindorURL...
+      }
+      const gumgumRequest = {
+        method: 'POST',
+        url: BID_ENDPOINT
       }
 
-      /* throttle based on the latest request for this product */
-      const productId = bid.pi;
-      const requestKey = productId + '|' + placementCode;
-      const throttle = throttleTable[productId];
-      const latestRequest = requestCache[requestKey];
-      if (latestRequest && throttle && (timestamp - latestRequest) < throttle) {
-        return utils.logWarn(
-          `[GumGum] The refreshes for "${placementCode}" with the params ` +
-          `${JSON.stringify(params)} should be at least ${throttle / 1e3}s apart.`
-        );
-      }
-      /* update the last request */
-      requestCache[requestKey] = timestamp;
+      /* set productID in bid object to be sent to GG ad server */
+      // should we make sure bids only have one of these set? Else,
+      // it's kinda f'ed up because last product type takes priority.
+      if (params.inImage) bid.pi = 1;
+      if (params.inScreen) bid.pi = 2;
+      if (params.inSlot) bid.pi = 3;
+      if (params['native']) bid.pi = 5;
 
       /* tracking id is required for in-image and in-screen */
       if (trackingId) bid.t = trackingId;
@@ -100,77 +136,50 @@ const GumgumAdapter = function GumgumAdapter() {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      /* include the pageViewId, if any */
-      if (pageViewId) bid.pv = pageViewId;
+      const payload = Object.assign(bid, browserParams, _getDigiTrustQueryParams())
+      const payloadString = JSON.stringify(payload)
+      gumgumRequest.data = payloadString
 
-      const cachedBid = Object.assign({
-        placementCode,
-        id: bidId
-      }, bid);
-
-      const callback = { jsonp: `$$PREBID_GLOBAL$$.handleGumGumCB['${bidId}']` };
-      CALLBACKS[bidId] = _handleGumGumResponse(cachedBid);
-      const query = Object.assign(callback, browserParams, bid, _getDigiTrustQueryParams());
-      const bidCall = `${bidEndpoint}?${utils.parseQueryStringParameters(query)}`;
-      adloader.loadScript(bidCall);
+      // usually we'd make the request to ad server here. We're gonna add it to an array and return
+      // that. Let's see if the prebid API accepts an array of requests as return value.
+      bids.push(gumgumRequest)
     });
-  }
 
-  const _handleGumGumResponse = cachedBidRequest => (bidResponse = {}) => {
-    const { pi: productId
-    } = cachedBidRequest;
-    const { ad = {}
-      , pag = {}
-      , thms: throttle
-    } = bidResponse;
-    /* cache the pageViewId */
-    if (pag && pag.pvid) pageViewId = pag.pvid;
-    if (ad && ad.id) {
-      /* set the new throttle */
-      throttleTable[productId] = throttle || defaultThrottle;
-      /* create the bid */
-      const bid = bidfactory.createBid(1);
-      const { t: trackingId
-      } = pag;
-      bidResponse.request = cachedBidRequest;
-      const encodedResponse = encodeURIComponent(JSON.stringify(bidResponse));
-      const gumgumAdLoader = `<script>
-        (function (context, topWindow, d, s, G) {
-          G = topWindow.GUMGUM;
-          d = topWindow.document;
-          function loadAd() {
-            topWindow.GUMGUM.pbjs("${trackingId}", ${productId}, "${encodedResponse}" , context);
-          }
-          if (G) {
-            loadAd();
-          } else {
-            topWindow.$$PREBID_GLOBAL$$.loadScript("https://js.gumgum.com/services.js", loadAd);
-          }
-        }(window, top));
-      </script>`;
-      Object.assign(bid, {
-        cpm: ad.price,
-        ad: gumgumAdLoader,
-        width: ad.width,
-        height: ad.height,
-        bidderCode: BIDDER_CODE
-      });
-      bidmanager.addBidResponse(cachedBidRequest.placementCode, bid);
-    } else {
-      const noBid = bidfactory.createBid(2);
-      noBid.bidderCode = BIDDER_CODE;
-      bidmanager.addBidResponse(cachedBidRequest.placementCode, noBid);
+    return bids
+  },
+  /**
+   * Unpack the response from the server into a list of bids.
+   *
+   * @param {*} serverResponse A successful response from the server.
+   * @return {Bid[]} An array of bids which were nested inside the server.
+   */
+  interpretResponse: function (serverResponse, request) {
+    const bidResponses = []
+    // loop through serverResponses {
+    const bidResponse = {
+      requestId: bidRequest.bidId,
+      bidderCode: spec.code,
+      cpm: CPM,
+      width: WIDTH,
+      height: HEIGHT,
+      creativeId: CREATIVE_ID,
+      dealId: DEAL_ID,
+      currency: CURRENCY,
+      netRevenue: true,
+      ttl: TIME_TO_LIVE,
+      referrer: REFERER,
+      ad: CREATIVE_BODY
     }
-    delete CALLBACKS[cachedBidRequest.id];
-  };
-
-  window.$$PREBID_GLOBAL$$.handleGumGumCB = CALLBACKS;
-
-  return {
-    callBids: _callBids
-  };
-};
-
-adaptermanager.registerBidAdapter(new GumgumAdapter(), 'gumgum');
-
-module.exports = GumgumAdapter;
+    bidResponses.push(bidResponse)
+    return bidResponses
+  },
+  getUserSyncs: function (syncOptions) {
+    if (syncOptions.iframeEnabled) {
+      return [{
+        type: 'iframe',
+        url: 'ADAPTER_SYNC_URL'
+      }]
+    }
+  }
+}
+registerBidder(spec)
