@@ -35,13 +35,18 @@ export const spec = {
    * @return boolean True if this is a valid bid, and false otherwise.
    */
   isBidRequestValid: function (bid) {
+    const {
+      params,
+      adUnitCode
+    } = bid;
+
     switch (true) {
       case !!(params.inImage): break;
       case !!(params.inScreen): break;
       case !!(params.inSlot): break;
       case !!(params['native']): break;
       default: utils.logWarn(
-        `[GumGum] No product selected for the placement ${placementCode}` +
+        `[GumGum] No product selected for the placement ${adUnitCode}` +
         ', please check your implementation.'
         );
         return false;
@@ -66,11 +71,13 @@ export const spec = {
       ce: utils.cookiesAreEnabled(),
       // dpr: topWindow.devicePixelRatio || 1
     };
+    const bids = [];
 
     utils._each(validBidRequests, bidRequest => {
-      const { bidId
-        , params = {}
-        , placementCode
+      const { bidId,
+        params = {},
+        adUnitCode,
+        transactionId
       } = bidRequest;
       const timestamp = _getTimeStamp();
       const trackingId = params.inScreen;
@@ -78,33 +85,16 @@ export const spec = {
       const slotId = params.inSlot;
       const bid = {
         // tmax: $$PREBID_GLOBAL$$.cbTimeout
+        tId: transactionId
       };
 
-      /* slot/native ads need the placement id */
-      switch (true) {
-        case !!(params.inImage): bid.pi = 1; break;
-        case !!(params.inScreen): bid.pi = 2; break;
-        case !!(params.inSlot): bid.pi = 3; break;
-        case !!(params['native']): bid.pi = 5; break;
-        default: return utils.logWarn(
-          `[GumGum] No product selected for the placement ${placementCode}` +
-          ', please check your implementation.'
-        );
-      }
-
-      /* throttle based on the latest request for this product */
-      const productId = bid.pi;
-      const requestKey = productId + '|' + placementCode;
-      const throttle = throttleTable[productId];
-      const latestRequest = requestCache[requestKey];
-      if (latestRequest && throttle && (timestamp - latestRequest) < throttle) {
-        return utils.logWarn(
-          `[GumGum] The refreshes for "${placementCode}" with the params ` +
-          `${JSON.stringify(params)} should be at least ${throttle / 1e3}s apart.`
-        );
-      }
-      /* update the last request */
-      requestCache[requestKey] = timestamp;
+      /* set productID in bid object to be sent to GG ad server */
+      // should we make sure bids only have one of these set? Else,
+      // it's kinda f'ed up because last product type takes precedence.
+      if (params.inImage) bid.pi = 1;
+      if (params.inScreen) bid.pi = 2;
+      if (params.inSlot) bid.pi = 3;
+      if (params['native']) bid.pi = 5;
 
       /* tracking id is required for in-image and in-screen */
       if (trackingId) bid.t = trackingId;
@@ -113,21 +103,12 @@ export const spec = {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      /* include the pageViewId, if any */
-      if (pageViewId) bid.pv = pageViewId;
-
-      const cachedBid = Object.assign({
-        placementCode,
-        id: bidId
-      }, bid);
-
       const callback = { jsonp: `$$PREBID_GLOBAL$$.handleGumGumCB['${bidId}']` };
       CALLBACKS[bidId] = _handleGumGumResponse(cachedBid);
       const query = Object.assign(callback, browserParams, bid, _getDigiTrustQueryParams());
       const bidCall = `${bidEndpoint}?${utils.parseQueryStringParameters(query)}`;
       adloader.loadScript(bidCall);
     });
-
 
     const payload = {
       // use bidderRequest.bids[] to get bidder-dependent request info
