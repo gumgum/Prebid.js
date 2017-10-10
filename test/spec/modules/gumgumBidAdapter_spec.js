@@ -66,7 +66,8 @@ describe('gumgumAdapter', () => {
     ];
 
     it('sends bid request to ENDPOINT via POST', () => {
-      const request = spec.buildRequests(bidRequests);
+      const requests = spec.buildRequests(bidRequests);
+      const request = requests[0];
       expect(request.url).to.equal(ENDPOINT);
       expect(request.method).to.equal('POST');
     });

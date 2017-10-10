@@ -145,7 +145,7 @@ export const spec = {
       bids.push(gumgumRequest)
     });
     // return bids[0];
-    return bids[0];
+    return bids;
   },
   /**
    * Unpack the response from the server into a list of bids.
