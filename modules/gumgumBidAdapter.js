@@ -102,7 +102,7 @@ export const spec = {
 
     utils._each(validBidRequests, bidRequest => {
       const {
-        // bidId,
+        bidId,
         params = {},
         // adUnitCode,
         transactionId
@@ -114,7 +114,8 @@ export const spec = {
       const timeout = config.getConfig('bidderTimeout');
       const bid = {
         tmax: timeout,
-        tId: transactionId
+        tId: transactionId,
+        id: bidId
         // we can add alot more info here like topWindorURL...
       }
       const gumgumRequest = {
@@ -165,6 +166,9 @@ export const spec = {
         markup: ad
       }
     } = serverResponse
+
+    // looks like we might have to put our rendering code in the creative markup "ad" instead of
+    // just passing on what
 
     const bidResponse = {
       id,
