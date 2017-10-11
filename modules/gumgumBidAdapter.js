@@ -14,6 +14,7 @@ let browserParams = {};
 //   return new Date().getTime();
 // }
 
+// TODO: tell Mario about potential 0 values for browserParams
 function _getBrowserParams() {
   let topWindow
   let topScreen
@@ -27,7 +28,7 @@ function _getBrowserParams() {
     topScreen = topWindow.screen;
   } catch (error) {
     utils.logError(error);
-    return null
+    return browserParams
   }
 
   browserParams = {
@@ -117,8 +118,7 @@ export const spec = {
         // we can add alot more info here like topWindorURL...
       }
       const gumgumRequest = {
-        method: 'POST',
-        url: BID_ENDPOINT
+        method: 'GET'
       }
 
       /* set productID in bid object to be sent to GG ad server */
@@ -136,15 +136,15 @@ export const spec = {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      const payload = Object.assign(bid, browserParams, _getDigiTrustQueryParams())
-      const payloadString = JSON.stringify(payload)
-      gumgumRequest.data = payloadString
+      const query = Object.assign(browserParams, bid, _getDigiTrustQueryParams());
+      const bidCall = `${BID_ENDPOINT}?${utils.parseQueryStringParameters(query)}`;
+
+      gumgumRequest.url = bidCall
 
       // usually we'd make the request to ad server here. We're gonna add it to an array and return
       // that. Let's see if the prebid API accepts an array of requests as return value.
       bids.push(gumgumRequest)
     });
-    // return bids[0];
     return bids;
   },
   /**
@@ -154,7 +154,9 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: function (serverResponse, request) {
-    const bidResponses = []
+    console.log('in adapter. serverResponse: ', serverResponse);
+    console.log('in adapter. request: ', request);
+
     // loop through serverResponses {
     const bidResponse = {
       requestId: bidRequest.bidId,
