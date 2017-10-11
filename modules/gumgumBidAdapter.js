@@ -180,7 +180,10 @@ export const spec = {
       // referrer: REFERER,
       ad
     }
-    bidResponses.push(bidResponse)
+
+    if (ad) {
+      bidResponses.push(bidResponse)
+    }
     return bidResponses
   },
   getUserSyncs: function (syncOptions) {
