@@ -68,7 +68,6 @@ describe('gumgumAdapter', () => {
     it('sends bid request to ENDPOINT via GET', () => {
       const requests = spec.buildRequests(bidRequests);
       const request = requests[0];
-      console.log('in testspec. bidRequest: ', request)
       // expect(request.url).to.equal(ENDPOINT);
       expect(request.method).to.equal('GET');
     });
@@ -76,6 +75,7 @@ describe('gumgumAdapter', () => {
 
   describe('interpretResponse', () => {
     let response = {
+      'bidId': 12345,
       'ad': {
         'id': 29593,
         'width': 300,
@@ -97,6 +97,28 @@ describe('gumgumAdapter', () => {
       },
       'thms': 10000
     }
+
+    it('should get correct bid response', () => {
+      let expectedResponse = [
+        {
+          'id': 12345,
+          'bidderCode': 'gumgum',
+          'cpm': 0,
+          'width': 300,
+          'height': 250,
+          'creativeId': 29593,
+          // dealId: DEAL_ID,
+          // currency: CURRENCY,
+          'netRevenue': true,
+          // ttl: TIME_TO_LIVE,
+          // referrer: REFERER,
+          'ad': '<div style="width:298px;height:248px;background:#fff;display:block;border:1px solid #000;background:#fff url(https://c.gumgum.com/images/logo/all300.png) no-repeat scroll center center">\n<\/div>'
+        }
+      ];
+
+      let result = spec.interpretResponse(response);
+      expect(Object.keys(result[0])).to.deep.equal(Object.keys(expectedResponse[0]));
+    });
   })
 
   // describe('interpretResponse', () => {

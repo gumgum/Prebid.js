@@ -154,23 +154,31 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: function (serverResponse, request) {
-    console.log('in adapter. serverResponse: ', serverResponse);
-    console.log('in adapter. request: ', request);
+    const bidResponses = []
+    const {
+      bidId: id,
+      ad: {
+        price: cpm,
+        width,
+        height,
+        id: creativeId,
+        markup: ad
+      }
+    } = serverResponse
 
-    // loop through serverResponses {
     const bidResponse = {
-      requestId: bidRequest.bidId,
+      id,
       bidderCode: spec.code,
-      cpm: CPM,
-      width: WIDTH,
-      height: HEIGHT,
-      creativeId: CREATIVE_ID,
-      dealId: DEAL_ID,
-      currency: CURRENCY,
+      cpm,
+      width,
+      height,
+      creativeId,
+      // dealId: DEAL_ID,
+      // currency: CURRENCY,
       netRevenue: true,
-      ttl: TIME_TO_LIVE,
-      referrer: REFERER,
-      ad: CREATIVE_BODY
+      // ttl: TIME_TO_LIVE,
+      // referrer: REFERER,
+      ad
     }
     bidResponses.push(bidResponse)
     return bidResponses
