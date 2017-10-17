@@ -326,9 +326,9 @@ export const spec = {
     // to put in gumgumAdLoader.
 
     const bidResponse = {
-      id: '22edbae2733bf6',
+      id: id || '22edbae2733bf6',
       bidderCode: spec.code,
-      cpm: 1,
+      cpm: cpm || 1,
       width,
       height,
       creativeId,
