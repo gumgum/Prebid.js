@@ -4,17 +4,9 @@ import { config } from 'src/config'
 const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
 const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
-
 let browserParams = {};
-// const requestCache = {};
-// const throttleTable = {};
-// const defaultThrottle = 3e4;
 
-// function _getTimeStamp() {
-//   return new Date().getTime();
-// }
-
-// TODO: tell Mario about potential 0 values for browserParams
+// TODO: potential 0 values for browserParams sent to ad server
 function _getBrowserParams() {
   let topWindow
   let topScreen
@@ -42,7 +34,6 @@ function _getBrowserParams() {
   }
   return browserParams
 }
-
 // TODO: use getConfig()
 function _getDigiTrustQueryParams() {
   function getDigiTrustId () {
@@ -216,7 +207,7 @@ function inSlotLoaderMaker (data) {
 
 export const spec = {
   code: BIDDER_CODE,
-  aliases: ['gg'], // short code
+  aliases: ['gg'],
   /**
    * Determines whether or not the given bid request is valid.
    *
@@ -241,8 +232,6 @@ export const spec = {
         return false;
     }
     return true;
-
-    // we can also check for throttle here.
   },
   /**
    * Make a server request from the list of BidRequests.
@@ -251,17 +240,14 @@ export const spec = {
    * @return ServerRequest Info describing the request to the server.
    */
   buildRequests: function (validBidRequests) {
-    const browserParams = _getBrowserParams();
     const bids = [];
 
     utils._each(validBidRequests, bidRequest => {
       const {
         bidId,
         params = {},
-        // adUnitCode,
         transactionId
       } = bidRequest;
-      // const timestamp = _getTimeStamp();
       const trackingId = params.inScreen;
       const nativeId = params['native'];
       const slotId = params.inSlot;
@@ -273,12 +259,12 @@ export const spec = {
         // we can add alot more info here like topWindorURL...
       }
       const gumgumRequest = {
+        id: bidId,
+        url: BID_ENDPOINT,
         method: 'GET'
       }
 
       /* set productID in bid object to be sent to GG ad server */
-      // should we make sure bids only have one of these set? Else,
-      // it's kinda f'ed up because last product type takes priority.
       if (params.inImage) bid.pi = 1;
       if (params.inScreen) bid.pi = 2;
       if (params.inSlot) bid.pi = 3;
@@ -291,13 +277,8 @@ export const spec = {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      const query = Object.assign(browserParams, bid, _getDigiTrustQueryParams());
-      const bidCall = `${BID_ENDPOINT}?${utils.parseQueryStringParameters(query)}`;
-
-      gumgumRequest.url = bidCall
-
-      // usually we'd make the request to ad server here. We're gonna add it to an array and return
-      // that. Let's see if the prebid API accepts an array of requests as return value.
+      gumgumRequest.data = Object.assign(_getBrowserParams(), bid, _getDigiTrustQueryParams())
+      gumgumRequest.pi = bid.pi
       bids.push(gumgumRequest)
     });
     return bids;
@@ -308,10 +289,9 @@ export const spec = {
    * @param {*} serverResponse A successful response from the server.
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
-  interpretResponse: function (serverResponse, request) {
+  interpretResponse: function (serverResponse, bidRequest) {
     const bidResponses = []
     const {
-      id,
       ad: {
         price: cpm,
         width,
@@ -320,15 +300,16 @@ export const spec = {
         markup
       }
     } = serverResponse
-    const inSlotLoader = inSlotLoaderMaker(serverResponse)
 
-    // we have to determine what product the request was for to know which ad render function
-    // to put in gumgumAdLoader.
+    // we have to determine what product the request was for to know which loader to use.
+    // for now use inSlotLoader
+    const ad = inSlotLoaderMaker(serverResponse)
 
     const bidResponse = {
-      id: id || '22edbae2733bf6',
+      requestId: bidRequest.id,
       bidderCode: spec.code,
-      cpm: cpm || 1,
+      // need to set a cpm > 0 for testing.
+      cpm: cpm || 0.5,
       width,
       height,
       creativeId,
@@ -337,13 +318,11 @@ export const spec = {
       netRevenue: true,
       // ttl: TIME_TO_LIVE,
       // referrer: REFERER,
-      ad: inSlotLoader
+      ad
     }
-
-    if (markup) {
+    if (markup && bidRequest.pi === 3) {
       bidResponses.push(bidResponse)
     }
-    console.log('bidResponses: ', bidResponses)
     return bidResponses
   },
   getUserSyncs: function (syncOptions) {
