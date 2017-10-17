@@ -221,10 +221,8 @@ export const spec = {
     } = bid;
 
     switch (true) {
-      case !!(params.inImage): break;
       case !!(params.inScreen): break;
       case !!(params.inSlot): break;
-      case !!(params['native']): break;
       default: utils.logWarn(
         `[GumGum] No product selected for the placement ${adUnitCode}` +
         ', please check your implementation.'
@@ -249,7 +247,6 @@ export const spec = {
         transactionId
       } = bidRequest;
       const trackingId = params.inScreen;
-      const nativeId = params['native'];
       const slotId = params.inSlot;
       const timeout = config.getConfig('bidderTimeout');
       const bid = {
@@ -265,15 +262,11 @@ export const spec = {
       }
 
       /* set productID in bid object to be sent to GG ad server */
-      if (params.inImage) bid.pi = 1;
       if (params.inScreen) bid.pi = 2;
       if (params.inSlot) bid.pi = 3;
-      if (params['native']) bid.pi = 5;
 
-      /* tracking id is required for in-image and in-screen */
+      /* tracking id is required for in-screen */
       if (trackingId) bid.t = trackingId;
-      /* native ads require a native placement id */
-      if (nativeId) bid.ni = nativeId;
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
