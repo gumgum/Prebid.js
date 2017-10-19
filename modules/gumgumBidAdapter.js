@@ -50,160 +50,6 @@ function _getDigiTrustQueryParams() {
     'dt': digiTrustId.id
   };
 }
-// Things we are NOT doing yet:
-//   hover tracking,
-//   badge
-//   viewability tracking
-//   pixel dropping other than impurl
-function inSlotLoaderMaker (data) {
-  var inSlotLoader = `<!doctype html><body></body><script>
-  function newEl (s) {
-    return document.createElement(s)
-  }
-  function addNode (parent, node) {
-    return parent.appendChild(node)
-  }
-  function rmNode (parent, node) {
-    parent = parent || node.parentNode
-    return parent ? parent.removeChild(node) : null
-  }
-  function toArray (x, start, end) {
-    return [].slice.call(x, start, end)
-  }
-  function byClass (className, context) {
-    var base = context || document
-    return base.getElementsByClassName(className)
-  }
-  function bySelector (selector, context) {
-    var base = context || document
-    var response = []
-    try {
-      response = toArray(base.querySelectorAll(selector))
-    } catch (err) {
-      console.log('invalid CSS selector: "' + selector + '"')
-    }
-    return response
-  }
-  function resetHTML (html) {
-    return html.replace(/_CLEARCSS_/g, 'margin:0;padding:0;position:static;outline:0;background:transparent none;border:none;overflow:visible;visibility:visible;filter:alpha(opacity=100);opacity:1;box-sizing:content-box;-moz-box-sizing:content-box;text-decoration:none;font:normal 12px/1 arial;text-shadow:none;box-shadow:none;color:#000;text-align:left;vertical-align:top;float:none;max-width:none;max-height:none')
-  }
-  function createSafeFrame (visible) {
-    var iframe = newEl('iframe')
-    iframe.allowTransparency = 1
-    iframe.frameBorder = 0
-    iframe.scrolling = 'no'
-    iframe.title = 'Advertisement'
-    // exluding allow-orientation-lock and allow-top-navigation
-    iframe.sandbox = 'allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts'
-    iframe.src = 'about:blank'
-    if (visible) {
-      iframe.width = (iframe.height = '100%')
-    } else {
-      iframe.width = (iframe.height = '0')
-      iframe.style.display = 'none'
-    }
-    return iframe
-  }
-  function iframeHTML (html, targetNode, replace) {
-    var iframe = createSafeFrame(true)
-    var clearhtml = resetHTML(html)
-    // node or selector
-    if (targetNode && !targetNode.nodeType) {
-      targetNode = [bySelector(targetNode) || [false]][0]
-    }
-    // break on no node
-    if (!targetNode) {
-      return false
-    }
-    // replace or append
-    if (replace && targetNode.parentNode) {
-      targetNode.parentNode.replaceChild(iframe, targetNode)
-    } else {
-      addNode(targetNode, iframe)
-    }
-    // let the iframe be built, then inject html
-    setTimeout(function () {
-      var idoc = iframe.contentDocument
-      if (idoc) {
-        idoc.open('text/html', 'replace')
-        idoc.write('<!DOCTYPE html><br style="display:none;"><style>*{padding:0;margin:0;background:transparent none;border:none;font-size:0}</style>' + clearhtml)
-        setTimeout(function () {
-          idoc.close()
-        }, 50)
-      } else {
-        console.log('iframeHTML error: contentDocument not found', html, targetNode, replace)
-      }
-    }, 50)
-    return iframe
-  }
-  function parseHTML (html, elementIndex) {
-    var tmp = newEl('span')
-    var finalElement = null
-    var sandbox = null
-    var matches = []
-    var content = []
-    var it = null
-    var len = null
-    elementIndex = elementIndex || 0
-    // legacy support
-    html = resetHTML(html)
-    while ((sandbox = /(?:<!--\[iframe\]-->)\s*([\s\S]*?)\s*(?:<!--\[\/iframe\]-->)/gmi.exec(html)) !== null) {
-      matches.push(sandbox[0])
-      content.push(sandbox[1])
-    }
-    for (it = 0, len = matches.length; it < len; it++) {
-      html = html.replace(matches[it], '<div class="gumgum-ifr-' + it + '"></div>')
-    }
-    tmp.innerHTML = html
-    for (it = 0; it < len; it++) {
-      iframeHTML(content[it], byClass('gumgum-ifr-' + it, tmp)[0], true)
-    }
-    if (elementIndex === '*') {
-      finalElement = toArray(tmp.childNodes)
-    } else if (tmp && tmp.children[elementIndex]) {
-      finalElement = rmNode(tmp, tmp.children[elementIndex])
-    } else {
-      throw new Error('Invalid parseHTML return Node')
-    }
-    tmp = null
-    return finalElement
-  }
-  function triggerPixel (url) {
-    const img = new Image();
-    img.src = url;
-  }
-  (function (data, origin) {
-    var ad = data.ad
-    var width = ad.width
-    var height = ad.height
-    var inIframe = ad.ii
-    var ipu = ad.impurl
-    var markup = ad.markup
-    var uid = 'ad_slot_' + (Date.now())
-    var adUnit
-    var sandbox = origin.document
-    var container = sandbox.createElement('div')
-    // build the placement inside the prebid iframe
-    container.setAttribute('style', 'width:' + width + 'px' + ';height:' + height + 'px')
-    addNode(sandbox.body, container)
-
-    if (ad) {
-      markup = markup.replace(/GGUID/g, uid)
-      if (inIframe && !/<!--iframe-->/im.test(markup)) {
-        adUnit = iframeHTML(markup, container)
-      } else {
-        adUnit = parseHTML('<div style="display:block;width:100%;height:100%">' + markup + '</div>')
-        addNode(container, adUnit)
-      }
-      addNode(container, parseHTML('<img src="https://c.gumgum.com/images/pixel.gif" class="ad-standalone-img" style="display:none;visibility:hidden;">'))
-
-      // Trigger impression
-      triggerPixel(ipu)
-    }
-  })(${JSON.stringify(data)}, window)
-  <\/script>`
-  return inSlotLoader
-}
 
 export const spec = {
   code: BIDDER_CODE,
@@ -223,10 +69,8 @@ export const spec = {
     switch (true) {
       case !!(params.inScreen): break;
       case !!(params.inSlot): break;
-      default: utils.logWarn(
-        `[GumGum] No product selected for the placement ${adUnitCode}` +
-        ', please check your implementation.'
-      );
+      default:
+        utils.logWarn(`[GumGum] No product selected for the placement ${adUnitCode}, please check your implementation.`);
         return false;
     }
     return true;
@@ -239,40 +83,34 @@ export const spec = {
    */
   buildRequests: function (validBidRequests) {
     const bids = [];
-
     utils._each(validBidRequests, bidRequest => {
+      const timeout = config.getConfig('bidderTimeout');
       const {
         bidId,
         params = {},
         transactionId
       } = bidRequest;
-      const trackingId = params.inScreen;
-      const slotId = params.inSlot;
-      const timeout = config.getConfig('bidderTimeout');
-      const bid = {
+      const data = {}
+
+      if (params.inScreen) {
+        data.t = params.inScreen;
+        data.pi = 2;
+      }
+      if (params.inSlot) {
+        data.si = params.inSlot;
+        data.pi = 3;
+      }
+
+      bids.push({
+        id: bidId,
         tmax: timeout,
         tId: transactionId,
-        id: bidId
-        // we can add alot more info here like topWindorURL...
-      }
-      const gumgumRequest = {
-        id: bidId,
+        pi: data.pi,
+        sizes: bidRequest.sizes,
         url: BID_ENDPOINT,
-        method: 'GET'
-      }
-
-      /* set productID in bid object to be sent to GG ad server */
-      if (params.inScreen) bid.pi = 2;
-      if (params.inSlot) bid.pi = 3;
-
-      /* tracking id is required for in-screen */
-      if (trackingId) bid.t = trackingId;
-      /* slot ads require a slot id */
-      if (slotId) bid.si = slotId;
-
-      gumgumRequest.data = Object.assign(_getBrowserParams(), bid, _getDigiTrustQueryParams())
-      gumgumRequest.pi = bid.pi
-      bids.push(gumgumRequest)
+        method: 'GET',
+        data: Object.assign(data, _getBrowserParams(), _getDigiTrustQueryParams())
+      })
     });
     return bids;
   },
@@ -287,16 +125,15 @@ export const spec = {
     const {
       ad: {
         price: cpm,
-        width,
-        height,
         id: creativeId,
         markup
       }
     } = serverResponse
+    let [width, height] = bidRequest.sizes[0]
 
     // we have to determine what product the request was for to know which loader to use.
     // for now use inSlotLoader
-    const ad = inSlotLoaderMaker(serverResponse)
+    const ad = markup ? markup.replace('AD_JSON', window.btoa(JSON.stringify(Object.assign({}, serverResponse, {bidRequest})))) : null
 
     const bidResponse = {
       requestId: bidRequest.id,
@@ -307,13 +144,13 @@ export const spec = {
       height,
       creativeId,
       // dealId: DEAL_ID,
-      // currency: CURRENCY,
+      currency: 'USD',
       netRevenue: true,
       // ttl: TIME_TO_LIVE,
       // referrer: REFERER,
       ad
     }
-    if (markup && bidRequest.pi === 3) {
+    if (markup) {
       bidResponses.push(bidResponse)
     }
     return bidResponses

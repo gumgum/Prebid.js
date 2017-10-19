@@ -97,6 +97,7 @@ describe('gumgumAdapter', () => {
     }
     let request = {
       id: 12345,
+      sizes: [[300, 250]],
       url: ENDPOINT,
       method: 'GET',
       pi: 3
@@ -112,7 +113,7 @@ describe('gumgumAdapter', () => {
           'height': 250,
           'creativeId': 29593,
           // dealId: DEAL_ID,
-          // currency: CURRENCY,
+          'currency': 'USD',
           'netRevenue': true,
           // ttl: TIME_TO_LIVE,
           // referrer: REFERER,
