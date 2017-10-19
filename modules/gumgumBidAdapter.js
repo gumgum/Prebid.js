@@ -6,6 +6,9 @@ const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
 const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
 let browserParams = {};
 
+function _getTimeStamp() {
+  return new Date().getTime();
+}
 // TODO: potential 0 values for browserParams sent to ad server
 function _getBrowserParams() {
   let topWindow
@@ -205,59 +208,16 @@ function inSlotLoaderMaker (data) {
   return inSlotLoader
 }
 
-function tempWrapper (trackingId, productId, response) {
-  var encodedResponse = encodeURIComponent(JSON.stringify(response))
-  var wrapper = `
-    <script>
-      (function (context, topWindow) {
-        var G = topWindow.GUMGUM;
-        var d = topWindow.document;
-        function loadScript(src, callback){
-          var jptScript = d.createElement('script');
-          jptScript.type = 'text/javascript';
-          jptScript.async = true;
-          if (callback && typeof callback === 'function') {
-            if (jptScript.readyState) {
-              jptScript.onreadystatechange = function () {
-                if (jptScript.readyState === 'loaded' || jptScript.readyState === 'complete') {
-                  jptScript.onreadystatechange = null;
-                  callback();
-                }
-              };
-            } else {
-              jptScript.onload = function () {
-                callback();
-              };
-            }
-          }
-          jptScript.src = src;
-          var elToAppend = d.getElementsByTagName('head');
-          elToAppend = elToAppend.length ? elToAppend : d.getElementsByTagName('body');
-          if (elToAppend.length) {
-            elToAppend = elToAppend[0];
-            elToAppend.insertBefore(jptScript, elToAppend.firstChild);
-          }
-        }
-        function loadAd() {
-          topWindow.GUMGUM.pbjs("${trackingId}", ${productId}, "${encodedResponse}" , context);
-        }
-        if (G) {
-          loadAd();
-        } else {
-          loadScript("https://js.gumgum.com/services.js", loadAd);
-        }
-      }(window, top));
-    </script>`
-  return wrapper
-}
-
 function inScreenLoader (data) {
-  return data.isw.replace(/HB_DATA/g, encodeURIComponent(JSON.stringify(data)))
+  return data.isw.replace(/HB_DATA/i, window.btoa(JSON.stringify(data)))
 }
 
 export const spec = {
   code: BIDDER_CODE,
   aliases: ['gg'],
+  requestCache: {},
+  throttleTable: {},
+  defaultThrottle: 3e4,
   /**
    * Determines whether or not the given bid request is valid.
    *
@@ -269,16 +229,37 @@ export const spec = {
       params,
       adUnitCode
     } = bid;
-
+    const timestamp = _getTimeStamp();
+    let productId
     switch (true) {
-      case !!(params.inScreen): break;
-      case !!(params.inSlot): break;
+      case !!(params.inScreen):
+        productId = params.inScreen;
+        break;
+      case !!(params.inSlot):
+        productId = params.inSlot;
+        break;
       default: utils.logWarn(
         `[GumGum] No product selected for the placement ${adUnitCode}` +
         ', please check your implementation.'
       );
         return false;
     }
+
+    /* throttle based on the latest request for this product */
+    const requestKey = productId + '|' + adUnitCode;
+    const throttle = this.throttleTable[productId];
+    console.log('throttle is: ', throttle, ' throttleTable: ', this.throttleTable)
+    const latestRequest = this.requestCache[requestKey];
+    if (latestRequest && throttle && (timestamp - latestRequest) < throttle) {
+      utils.logWarn(
+        `[GumGum] The refreshes for "${adUnitCode}" with the params ` +
+        `${JSON.stringify(params)} should be at least ${throttle / 1e3}s apart.`
+      );
+      return false;
+    }
+    /* update the last request */
+    this.requestCache[requestKey] = timestamp;
+
     return true;
   },
   /**
@@ -341,7 +322,8 @@ export const spec = {
         height,
         id: creativeId,
         markup
-      }
+      },
+      thms: throttle
     } = serverResponse
     const { pi } = bidRequest
     let ad = ''
@@ -352,11 +334,15 @@ export const spec = {
 
     // we have to determine what product the request was for to know which loader to use.
     // for now use inSlotLoader
+    console.log('pi: ', pi)
     switch (pi) {
       // do nothing for inscreen as we will wrap it at server level?
       case 2: ad = inScreenLoader(serverResponse); break
       case 3: ad = inSlotLoaderMaker(serverResponse)
     }
+
+    /* set the new throttle */
+    this.throttleTable[pi] = throttle || this.defaultThrottle;
 
     console.log('final markup: ', ad)
 
