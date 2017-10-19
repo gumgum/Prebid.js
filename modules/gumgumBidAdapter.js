@@ -5,6 +5,10 @@ const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
 const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
 let browserParams = {};
+const requestCache = {};
+const throttleTable = {};
+const defaultThrottle = 3e4;
+let pageViewId = ''
 
 function _getTimeStamp() {
   return new Date().getTime();
@@ -53,13 +57,16 @@ function _getDigiTrustQueryParams() {
     'dt': digiTrustId.id
   };
 }
+function b64Encode(data) {
+  return window.btoa(JSON.stringify(data))
+}
 // Things we are NOT doing yet:
 //   hover tracking,
 //   badge
 //   viewability tracking
 //   pixel dropping other than impurl
-function inSlotLoaderMaker (data) {
-  var inSlotLoader = `<!doctype html><body></body><script>
+function inSlotLoader (resp) {
+  var loader = `<!doctype html><body></body><script>
   function newEl (s) {
     return document.createElement(s)
   }
@@ -176,6 +183,7 @@ function inSlotLoaderMaker (data) {
     img.src = url;
   }
   (function (data, origin) {
+    var data = JSON.parse(window.atob(data))
     var ad = data.ad
     var width = ad.width
     var height = ad.height
@@ -203,21 +211,17 @@ function inSlotLoaderMaker (data) {
       // Trigger impression
       triggerPixel(ipu)
     }
-  })(${JSON.stringify(data)}, window)
+  })("${b64Encode(resp)}", window)
   <\/script>`
-  return inSlotLoader
+  return loader
 }
-
-function inScreenLoader (data) {
-  return data.isw.replace(/HB_DATA/i, window.btoa(JSON.stringify(data)))
+function inScreenLoader (resp) {
+  return data.isw.replace(/HB_DATA/i, b64Encode(resp))
 }
 
 export const spec = {
   code: BIDDER_CODE,
   aliases: ['gg'],
-  requestCache: {},
-  throttleTable: {},
-  defaultThrottle: 3e4,
   /**
    * Determines whether or not the given bid request is valid.
    *
@@ -233,10 +237,10 @@ export const spec = {
     let productId
     switch (true) {
       case !!(params.inScreen):
-        productId = params.inScreen;
+        productId = 2;
         break;
       case !!(params.inSlot):
-        productId = params.inSlot;
+        productId = 3;
         break;
       default: utils.logWarn(
         `[GumGum] No product selected for the placement ${adUnitCode}` +
@@ -247,9 +251,8 @@ export const spec = {
 
     /* throttle based on the latest request for this product */
     const requestKey = productId + '|' + adUnitCode;
-    const throttle = this.throttleTable[productId];
-    console.log('throttle is: ', throttle, ' throttleTable: ', this.throttleTable)
-    const latestRequest = this.requestCache[requestKey];
+    const throttle = throttleTable[productId];
+    const latestRequest = requestCache[requestKey];
     if (latestRequest && throttle && (timestamp - latestRequest) < throttle) {
       utils.logWarn(
         `[GumGum] The refreshes for "${adUnitCode}" with the params ` +
@@ -258,7 +261,7 @@ export const spec = {
       return false;
     }
     /* update the last request */
-    this.requestCache[requestKey] = timestamp;
+    requestCache[requestKey] = timestamp;
 
     return true;
   },
@@ -301,7 +304,10 @@ export const spec = {
       /* slot ads require a slot id */
       if (slotId) bid.si = slotId;
 
-      gumgumRequest.data = Object.assign(_getBrowserParams(), bid, _getDigiTrustQueryParams())
+      /* include the pageViewId, if any */
+      if (pageViewId) bid.pv = pageViewId;
+
+      gumgumRequest.data = Object.assign(bid, _getBrowserParams(), _getDigiTrustQueryParams())
       gumgumRequest.pi = bid.pi
       bids.push(gumgumRequest)
     });
@@ -323,10 +329,13 @@ export const spec = {
         id: creativeId,
         markup
       },
+      pag,
       thms: throttle
     } = serverResponse
     const { pi } = bidRequest
     let ad = ''
+
+    console.log('interpretResponse. bidRequest: ', bidRequest, ', serverResponse: ', serverResponse)
 
     if (!markup) {
       return bidResponses
@@ -334,17 +343,17 @@ export const spec = {
 
     // we have to determine what product the request was for to know which loader to use.
     // for now use inSlotLoader
-    console.log('pi: ', pi)
     switch (pi) {
       // do nothing for inscreen as we will wrap it at server level?
       case 2: ad = inScreenLoader(serverResponse); break
-      case 3: ad = inSlotLoaderMaker(serverResponse)
+      case 3: ad = inSlotLoader(serverResponse)
     }
 
-    /* set the new throttle */
-    this.throttleTable[pi] = throttle || this.defaultThrottle;
+    /* cache the pageViewId */
+    if (pag && pag.pvid) pageViewId = pag.pvid;
 
-    console.log('final markup: ', ad)
+    /* set the new throttle */
+    throttleTable[pi] = throttle || defaultThrottle;
 
     const bidResponse = {
       requestId: bidRequest.id,
