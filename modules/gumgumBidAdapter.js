@@ -205,6 +205,56 @@ function inSlotLoaderMaker (data) {
   return inSlotLoader
 }
 
+function tempWrapper (trackingId, productId, response) {
+  var encodedResponse = encodeURIComponent(JSON.stringify(response))
+  var wrapper = `
+    <script>
+      (function (context, topWindow) {
+        var G = topWindow.GUMGUM;
+        var d = topWindow.document;
+        function loadScript(src, callback){
+          var jptScript = d.createElement('script');
+          jptScript.type = 'text/javascript';
+          jptScript.async = true;
+          if (callback && typeof callback === 'function') {
+            if (jptScript.readyState) {
+              jptScript.onreadystatechange = function () {
+                if (jptScript.readyState === 'loaded' || jptScript.readyState === 'complete') {
+                  jptScript.onreadystatechange = null;
+                  callback();
+                }
+              };
+            } else {
+              jptScript.onload = function () {
+                callback();
+              };
+            }
+          }
+          jptScript.src = src;
+          var elToAppend = d.getElementsByTagName('head');
+          elToAppend = elToAppend.length ? elToAppend : d.getElementsByTagName('body');
+          if (elToAppend.length) {
+            elToAppend = elToAppend[0];
+            elToAppend.insertBefore(jptScript, elToAppend.firstChild);
+          }
+        }
+        function loadAd() {
+          topWindow.GUMGUM.pbjs("${trackingId}", ${productId}, "${encodedResponse}" , context);
+        }
+        if (G) {
+          loadAd();
+        } else {
+          loadScript("https://js.gumgum.com/services.js", loadAd);
+        }
+      }(window, top));
+    </script>`
+  return wrapper
+}
+
+function inScreenLoader (data) {
+  return data.isw.replace(/HB_DATA/g, encodeURIComponent(JSON.stringify(data)))
+}
+
 export const spec = {
   code: BIDDER_CODE,
   aliases: ['gg'],
@@ -293,10 +343,22 @@ export const spec = {
         markup
       }
     } = serverResponse
+    const { pi } = bidRequest
+    let ad = ''
+
+    if (!markup) {
+      return bidResponses
+    }
 
     // we have to determine what product the request was for to know which loader to use.
     // for now use inSlotLoader
-    const ad = inSlotLoaderMaker(serverResponse)
+    switch (pi) {
+      // do nothing for inscreen as we will wrap it at server level?
+      case 2: ad = inScreenLoader(serverResponse); break
+      case 3: ad = inSlotLoaderMaker(serverResponse)
+    }
+
+    console.log('final markup: ', ad)
 
     const bidResponse = {
       requestId: bidRequest.id,
@@ -313,7 +375,7 @@ export const spec = {
       // referrer: REFERER,
       ad
     }
-    if (markup && bidRequest.pi === 3) {
+    if (ad) {
       bidResponses.push(bidResponse)
     }
     return bidResponses
