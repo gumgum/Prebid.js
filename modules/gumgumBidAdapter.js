@@ -13,7 +13,6 @@ let pageViewId = ''
 function _getTimeStamp() {
   return new Date().getTime();
 }
-// TODO: potential 0 values for browserParams sent to ad server
 function _getBrowserParams() {
   let topWindow
   let topScreen
@@ -288,7 +287,6 @@ export const spec = {
         tmax: timeout,
         tId: transactionId,
         id: bidId
-        // we can add alot more info here like topWindorURL...
       }
       const gumgumRequest = {
         id: bidId,
