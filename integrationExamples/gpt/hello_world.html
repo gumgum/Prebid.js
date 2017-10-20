@@ -16,7 +16,8 @@
     <script>
       var PREBID_TIMEOUT = 3000;
 
-      var adUnits = [{
+      var adUnits = [
+        {
         code: 'div-gpt-ad-1460505748561-0',
         sizes: [[728, 90]],
         bids: [{
@@ -35,7 +36,18 @@
             inSlot: 9
           }
         }]
-      }];
+      },
+      {
+        code: 'div-gpt-ad-1460505748561-2',
+        sizes: [[300, 250], [300,600]],
+        bids: [{
+          bidder: 'gumgum',
+          params: {
+            inSlot: 9
+          }
+        }]
+      }
+    ];
 
       var pbjs = pbjs || {};
       pbjs.que = pbjs.que || [];
@@ -91,6 +103,7 @@
       googletag.cmd.push(function () {
         googletag.defineSlot('/19968336/header-bid-tag-0', [[728, 90]], 'div-gpt-ad-1460505748561-0').addService(googletag.pubads());
         googletag.defineSlot('/19968336/header-bid-tag-0', [[300, 250], [300, 600]], 'div-gpt-ad-1460505748561-1').addService(googletag.pubads());
+        googletag.defineSlot('/19968336/header-bid-tag-0', [[300, 250], [300, 600]], 'div-gpt-ad-1460505748561-2').addService(googletag.pubads());
         googletag.pubads().enableSingleRequest();
         googletag.enableServices();
       });
@@ -109,6 +122,12 @@
 <div id='div-gpt-ad-1460505748561-1'>
   <script type='text/javascript'>
     googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-1'); });
+  </script>
+</div>
+<h5>Div-3</h5>
+<div id='div-gpt-ad-1460505748561-2'>
+  <script type='text/javascript'>
+    googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-2'); });
   </script>
 </div>
 </body>
