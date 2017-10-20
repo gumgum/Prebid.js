@@ -43,7 +43,7 @@ function _getBrowserParams() {
 // TODO: use getConfig()
 function _getDigiTrustQueryParams() {
   function getDigiTrustId () {
-    var digiTrustUser = (window.DigiTrust && window.DigiTrust.getUser) ? window.DigiTrust.getUser(DT_CREDENTIALS) : {};
+    let digiTrustUser = window.DigiTrust && (config.getConfig('digiTrustId') || window.DigiTrust.getUser(DT_CREDENTIALS));
     return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || '';
   };
 
@@ -53,9 +53,11 @@ function _getDigiTrustQueryParams() {
     return {};
   }
   return {
-    'dt': digiTrustId.id
+    'dti': digiTrustId.id,
+    'dtk': digiTrustId.keyv
   };
 }
+
 function b64Encode(data) {
   return window.btoa(JSON.stringify(data))
 }
