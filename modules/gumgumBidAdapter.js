@@ -216,7 +216,8 @@ function inSlotLoader (resp) {
   return loader
 }
 function inScreenLoader (resp) {
-  return data.isw.replace(/HB_DATA/i, b64Encode(resp))
+  var encodedResponse = b64Encode(resp)
+  return resp.isw.replace(/HB_DATA/i, encodedResponse)
 }
 
 export const spec = {
@@ -334,8 +335,6 @@ export const spec = {
     } = serverResponse
     const { pi } = bidRequest
     let ad = ''
-
-    console.log('interpretResponse. bidRequest: ', bidRequest, ', serverResponse: ', serverResponse)
 
     if (!markup) {
       return bidResponses
