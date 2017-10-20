@@ -353,6 +353,7 @@ export const spec = {
 
     /* set the new throttle */
     throttleTable[pi] = throttle || defaultThrottle;
+    console.log('set the new throttle to: ', throttleTable[pi])
 
     const bidResponse = {
       requestId: bidRequest.id,

@@ -17,7 +17,7 @@ describe('gumgumAdapter', () => {
     let bid = {
       'bidder': 'gumgum',
       'params': {
-        'inScreen': '10433394'
+        'inScreen': 'ggumtest'
       },
       'adUnitCode': 'adunit-code',
       'sizes': [[300, 250], [300, 600]],
@@ -26,16 +26,16 @@ describe('gumgumAdapter', () => {
       'auctionId': '1d1a030790a475',
     };
 
-    // // TODO: except when throttling!
-    // it('should return true when required params found', () => {
-    //   expect(spec.isBidRequestValid(bid)).to.equal(true);
-    // });
+    // TODO: except when throttling!
+    it('should return true when required params found', () => {
+      expect(spec.isBidRequestValid(bid)).to.equal(true);
+    });
 
     it('should return true when required params found', () => {
       let bid = Object.assign({}, bid);
       delete bid.params;
       bid.params = {
-        'inSlot': '789'
+        'inSlot': '9'
       };
 
       expect(spec.isBidRequestValid(bid)).to.equal(true);
