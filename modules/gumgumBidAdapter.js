@@ -40,7 +40,6 @@ function _getBrowserParams() {
   }
   return browserParams
 }
-// TODO: use getConfig()
 function _getDigiTrustQueryParams() {
   function getDigiTrustId () {
     let digiTrustUser = window.DigiTrust && (config.getConfig('digiTrustId') || window.DigiTrust.getUser(DT_CREDENTIALS));
@@ -342,8 +341,6 @@ export const spec = {
       return bidResponses
     }
 
-    // we have to determine what product the request was for to know which loader to use.
-    // for now use inSlotLoader
     switch (pi) {
       // do nothing for inscreen as we will wrap it at server level?
       case 2: ad = inScreenLoader(serverResponse); break
