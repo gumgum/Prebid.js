@@ -58,6 +58,7 @@ function _getDigiTrustQueryParams() {
   };
 }
 function b64Encode(data) {
+  console.log('in b64Encode')
   return window.btoa(JSON.stringify(data))
 }
 // Things we are NOT doing yet:
@@ -216,7 +217,14 @@ function inSlotLoader (resp) {
   return loader
 }
 function inScreenLoader (resp) {
-  return data.isw.replace(/HB_DATA/i, b64Encode(resp))
+  console.log('in inScreenLoader. resp: ', resp)
+  console.log('FUCK')
+  var encodedResp = b64Encode(resp)
+  console.log('after encoding response')
+  var loader = data.isw.replace(/HB_DATA/i, encodedResp)
+  console.log('YOU')
+  console.log('after replacement in inScreenLoader')
+  return loader
 }
 
 export const spec = {
@@ -338,14 +346,18 @@ export const spec = {
     console.log('interpretResponse. bidRequest: ', bidRequest, ', serverResponse: ', serverResponse)
 
     if (!markup) {
+      console.log('NO MARKUP!')
       return bidResponses
     }
-
+    console.log('yes markup.')
+    console.log('pi is: ', pi)
     // we have to determine what product the request was for to know which loader to use.
     // for now use inSlotLoader
     switch (pi) {
       // do nothing for inscreen as we will wrap it at server level?
-      case 2: ad = inScreenLoader(serverResponse); break
+      case 2: ad = inScreenLoader(serverResponse);
+        console.log('after inScreenLoader')
+        break
       case 3: ad = inSlotLoader(serverResponse)
     }
 
@@ -370,9 +382,11 @@ export const spec = {
       // referrer: REFERER,
       ad
     }
+    // console.log('ad before choosing to push to responses or not: ', ad)
     if (ad) {
       bidResponses.push(bidResponse)
     }
+    console.log('returning bidResponses: ', bidResponses)
     return bidResponses
   },
   getUserSyncs: function (syncOptions) {
