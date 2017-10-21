@@ -108,23 +108,42 @@
         googletag.enableServices();
       });
     </script>
+    <script>
+      function refreshSlot(id) {
+        var slot = adUnits.find(function (adUnit) {
+          return (adUnit.code === id) ? true : false;
+        })
+        pbjs.requestBids({
+            timeout: PREBID_TIMEOUT,
+            adUnitCodes: [id],
+            adUnits: [slot],
+            bidsBackHandler: function () {
+                pbjs.setTargetingForGPTAsync([id]);
+                googletag.pubads().refresh([slot]);
+            }
+        });
+      }
+    </script>
 </head>
 
 <body>
 <h2>Prebid.js Test</h2>
 <h5>Div-1</h5>
+<button onclick="refreshSlot('div-gpt-ad-1460505748561-0')">Refresh</button>
 <div id='div-gpt-ad-1460505748561-0'>
     <script type='text/javascript'>
       googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-0'); });
     </script>
 </div>
 <h5>Div-2</h5>
+<button onclick="refreshSlot('div-gpt-ad-1460505748561-1')">Refresh</button>
 <div id='div-gpt-ad-1460505748561-1'>
   <script type='text/javascript'>
     googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-1'); });
   </script>
 </div>
 <h5>Div-3</h5>
+<button onclick="refreshSlot('div-gpt-ad-1460505748561-2')">Refresh</button>
 <div id='div-gpt-ad-1460505748561-2'>
   <script type='text/javascript'>
     googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-2'); });

@@ -254,7 +254,6 @@ export const spec = {
     const requestKey = productId + '|' + adUnitCode;
     const throttle = throttleTable[productId];
     const latestRequest = requestCache[requestKey];
-    console.log('requestKey: ', requestKey, ', throttle is: ', throttle, ', latestRequest: ', latestRequest)
     if (latestRequest && throttle && (timestamp - latestRequest) < throttle) {
       utils.logWarn(
         `[GumGum] The refreshes for "${adUnitCode}" with the params ` +
@@ -264,7 +263,6 @@ export const spec = {
     }
     /* update the last request */
     requestCache[requestKey] = timestamp;
-    console.log('set requestCache[' + requestKey + '] to: ', requestCache[requestKey])
 
     return true;
   },
@@ -352,7 +350,6 @@ export const spec = {
 
     /* set the new throttle */
     throttleTable[pi] = throttle || defaultThrottle;
-    console.log('set the new throttle to: ', throttleTable[pi])
 
     const bidResponse = {
       requestId: bidRequest.id,
