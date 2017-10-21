@@ -94,6 +94,7 @@ describe('gumgumAdapter', () => {
         'css': '#GGID ._gBadge._g.Badge {\n    z-index: 1000 !important;\n}\n\n/* DB-4066 */\nhtml { overflow-y: auto }',
         'js': "G.infoFlag = 'japan';\n/* GG-18932 */\nG.samplerate = 100;\nG.loadObj('https://c.gumgum.com/libs/GG-18932.min.js',{type:'s',cb:false});\n/* AT-5020 */\nG.perfSampleRate = 100;\nconsole.log(\"environment\", env);"
       },
+      'isw': 'ggumtest',
       'thms': 10000
     }
     let request = {
