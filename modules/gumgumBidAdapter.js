@@ -1,31 +1,33 @@
 import * as utils from 'src/utils'
 import { registerBidder } from 'src/adapters/bidderFactory'
 import { config } from 'src/config'
+
 const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
 const DT_CREDENTIALS = { member: 'YcXr87z2lpbB' }
-let browserParams = {};
 const requestCache = {};
 const throttleTable = {};
 const defaultThrottle = 3e4;
-let pageViewId = ''
+let browserParams = false;
+let pageViewId = false;
 
+/**
+ * Get common browser parameters (if possible)
+ * @returns {Object}
+ */
 function _getBrowserParams() {
   let topWindow
   let topScreen
-  if (browserParams.vw) {
-    // we've already initialized browserParams, just return it.
+  if (browserParams) {
     return browserParams
   }
-
   try {
     topWindow = global.top;
     topScreen = topWindow.screen;
   } catch (error) {
     utils.logError(error);
-    return browserParams
+    return {}
   }
-
   browserParams = {
     vw: topWindow.innerWidth,
     vh: topWindow.innerHeight,
@@ -37,29 +39,33 @@ function _getBrowserParams() {
   }
   return browserParams
 }
+/**
+ * Get DigiTrust Identity
+ * @returns {Object|false}
+ */
+function getDigiTrustId () {
+  let digiTrustUser = window.DigiTrust && (config.getConfig('digiTrustId') || window.DigiTrust.getUser(DT_CREDENTIALS));
+  return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || false;
+};
+/**
+ * Get DigiTrust params
+ * @returns {Object}
+ */
 function _getDigiTrustQueryParams() {
-  function getDigiTrustId () {
-    let digiTrustUser = window.DigiTrust && (config.getConfig('digiTrustId') || window.DigiTrust.getUser(DT_CREDENTIALS));
-    return (digiTrustUser && digiTrustUser.success && digiTrustUser.identity) || '';
-  };
-
   let digiTrustId = getDigiTrustId();
   // Verify there is an ID and this user has not opted out
-  if (!digiTrustId || (digiTrustId.privacy && digiTrustId.privacy.optout)) {
-    return {};
-  }
-  return {
+  return (digiTrustId && !(digiTrustId.privacy && digiTrustId.privacy.optout)) ? {
     'dti': digiTrustId.id,
     'dtk': digiTrustId.keyv
-  };
+  } : {};
 }
-
+/**
+ * Base64 a JSON string from Object
+ * @param {Object}
+ * @returns {String}
+ */
 function b64Encode(data) {
   return window.btoa(JSON.stringify(data))
-}
-function adRenderer (resp) {
-  var encodedResponse = b64Encode(resp)
-  return resp.isw.replace(/HB_DATA/i, encodedResponse)
 }
 
 export const spec = {
@@ -67,7 +73,6 @@ export const spec = {
   aliases: ['gg'],
   /**
    * Determines whether or not the given bid request is valid.
-   *
    * @param {BidRequest} bid The bid params to validate.
    * @return boolean True if this is a valid bid, and false otherwise.
    */
@@ -119,39 +124,42 @@ export const spec = {
     const bids = [];
 
     utils._each(validBidRequests, bidRequest => {
+      const timeout = config.getConfig('bidderTimeout');
       const {
         bidId,
         params = {},
         transactionId
       } = bidRequest;
-      const trackingId = params.inScreen;
-      const slotId = params.inSlot;
-      const timeout = config.getConfig('bidderTimeout');
+
       const bid = {
         tmax: timeout,
         tId: transactionId,
         id: bidId
       }
-      const gumgumRequest = {
-        id: bidId,
-        url: BID_ENDPOINT,
-        method: 'GET'
-      }
-
-      /* set productID in bid object to be sent to GG ad server */
-      if (params.inScreen) bid.pi = 2;
-      if (params.inSlot) bid.pi = 3;
 
       /* tracking id is required for in-screen */
-      bid.t = trackingId;
-      /* slot ads require a slot id */
-      bid.si = slotId;
+      if (params.inScreen) {
+        bid.pi = 2;
+        bid.t = params.inScreen
+      }
+      /* slot id is required for in-slot */
+      if (params.inSlot) {
+        bid.pi = 3;
+        bid.si = params.inSlot;
+      }
 
       /* include the pageViewId, if any */
-      if (pageViewId) bid.pv = pageViewId;
+      if (pageViewId) {
+        bid.pv = pageViewId;
+      }
 
-      gumgumRequest.data = Object.assign(bid, _getBrowserParams(), _getDigiTrustQueryParams())
-      gumgumRequest.pi = bid.pi
+      bids.push({
+        id: bidId,
+        url: BID_ENDPOINT,
+        method: 'GET',
+        data: Object.assign(bid, _getBrowserParams(), _getDigiTrustQueryParams()),
+        pi: bid.pi
+      })
       bids.push(gumgumRequest)
     });
     return bids;
@@ -170,21 +178,23 @@ export const spec = {
         width,
         height,
         id: creativeId,
-        markup
+        markup,
+        isw
       },
       pag,
       thms: throttle
     } = serverResponse
     const { pi } = bidRequest
-    let ad = ''
 
     if (!markup) {
       return bidResponses
     }
-    ad = adRenderer(serverResponse)
+    const ad = isw.replace(/ADJSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
 
     /* cache the pageViewId */
-    if (pag && pag.pvid) pageViewId = pag.pvid;
+    if (pag && pag.pvid) {
+      pageViewId = pag.pvid;
+    }
 
     /* set the new throttle */
     throttleTable[pi] = throttle || defaultThrottle;
@@ -198,7 +208,7 @@ export const spec = {
       height,
       creativeId,
       // dealId: DEAL_ID,
-      // currency: CURRENCY,
+      currency: 'USD',
       netRevenue: true,
       // ttl: TIME_TO_LIVE,
       // referrer: REFERER,
