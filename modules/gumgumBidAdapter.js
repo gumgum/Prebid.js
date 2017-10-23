@@ -160,7 +160,6 @@ export const spec = {
         data: Object.assign(bid, _getBrowserParams(), _getDigiTrustQueryParams()),
         pi: bid.pi
       })
-      bids.push(gumgumRequest)
     });
     return bids;
   },
@@ -179,7 +178,7 @@ export const spec = {
         height,
         id: creativeId,
         markup,
-        isw
+        pbw
       },
       pag,
       thms: throttle
@@ -189,7 +188,7 @@ export const spec = {
     if (!markup) {
       return bidResponses
     }
-    const ad = isw.replace(/ADJSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
+    const ad = pbw.replace(/AD_JSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
 
     /* cache the pageViewId */
     if (pag && pag.pvid) {

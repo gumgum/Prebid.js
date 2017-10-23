@@ -85,7 +85,7 @@ describe('gumgumAdapter', () => {
         'du': null,
         'price': 0,
         'zi': 0,
-        'isw': 'ggumtest',
+        'pbw': 'ggumtest',
         'impurl': 'http://g2.gumgum.com/ad/view/enc/hasR4Y3aDoKInNYRxCfOp-Uatqav0e1W53SJIj9O6H1wz_Fa2GDwdaH95ZNLv7mF-qw9O07jHy8pURLqGxiXoZtG6aNoB5VPCj0CL99KMqM6PqjltEdAYxCSOQDitoBjohKQICAWAZRKpz1SOa6uR-RyuIVXcvFYgEK_iQJhuGdH0z4z1lKDYiToe_acZaNBn37LP2n2Vn0',
         'clsurl': 'http://g2.gumgum.com/ad/close?si=9&t=ggumtest&ab=29593&pv=aa8bbb65-427f-4689-8cee-e3eed0b89eec&pu=http%3A%2F%2Flocalhost%3A9876%2F%3Fid%3D27669636&lt=&to=&ts=1507676828211&er=0.00'
       },
