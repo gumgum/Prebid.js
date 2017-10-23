@@ -10,9 +10,6 @@ const throttleTable = {};
 const defaultThrottle = 3e4;
 let pageViewId = ''
 
-function _getTimeStamp() {
-  return new Date().getTime();
-}
 function _getBrowserParams() {
   let topWindow
   let topScreen
@@ -79,8 +76,9 @@ export const spec = {
       params,
       adUnitCode
     } = bid;
-    const timestamp = _getTimeStamp();
+    const timestamp = utils.timestamp();
     let productId
+
     switch (true) {
       case !!(params.inScreen):
         productId = 2;
@@ -145,9 +143,9 @@ export const spec = {
       if (params.inSlot) bid.pi = 3;
 
       /* tracking id is required for in-screen */
-      if (trackingId) bid.t = trackingId;
+      bid.t = trackingId;
       /* slot ads require a slot id */
-      if (slotId) bid.si = slotId;
+      bid.si = slotId;
 
       /* include the pageViewId, if any */
       if (pageViewId) bid.pv = pageViewId;
