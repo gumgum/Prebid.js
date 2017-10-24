@@ -185,15 +185,15 @@ export const spec = {
     } = serverResponse
     const { pi } = bidRequest
 
-    if (!markup) {
-      return bidResponses
-    }
-    const ad = pbw.replace(/AD_JSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
-
     /* cache the pageViewId */
     if (pag && pag.pvid) {
       pageViewId = pag.pvid;
     }
+
+    if (!markup) {
+      return bidResponses
+    }
+    const ad = pbw.replace(/AD_JSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
 
     /* set the new throttle */
     throttleTable[pi] = throttle || defaultThrottle;
