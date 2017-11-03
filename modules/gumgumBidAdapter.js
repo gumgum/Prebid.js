@@ -190,7 +190,7 @@ export const spec = {
       pageViewId = pag.pvid;
     }
 
-    if (!markup) {
+    if (!markup || !pbw) {
       return bidResponses
     }
     const ad = pbw.replace(/AD_JSON/i, b64Encode(Object.assign({}, serverResponse, bidRequest)))
