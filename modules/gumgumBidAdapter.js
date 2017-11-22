@@ -1,6 +1,7 @@
 import * as utils from 'src/utils'
-import { registerBidder } from 'src/adapters/bidderFactory'
+
 import { config } from 'src/config'
+import { registerBidder } from 'src/adapters/bidderFactory'
 
 const BIDDER_CODE = 'gumgum'
 const BID_ENDPOINT = `https://g2.gumgum.com/hbid/imp`
@@ -36,6 +37,7 @@ function _getBrowserParams() {
     pu: utils.getTopWindowUrl(),
     ce: utils.cookiesAreEnabled(),
     dpr: topWindow.devicePixelRatio || 1
+    // bf: getBrowserFP() - Mario says we need this now
   }
   return browserParams
 }
