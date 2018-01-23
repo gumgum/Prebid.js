@@ -75,6 +75,7 @@ function isBidRequestValid (bid) {
   switch (true) {
     case !!(params.inScreen): break;
     case !!(params.inSlot): break;
+    case !!(params.ICV): break;
     default:
       utils.logWarn(`[GumGum] No product selected for the placement ${adUnitCode}, please check your implementation.`);
       return false;
@@ -106,6 +107,11 @@ function buildRequests (validBidRequests) {
     if (params.inSlot) {
       data.si = parseInt(params.inSlot, 10);
       data.pi = 3;
+    }
+    if (params.ICV) {
+      console.log('params.ICV')
+      data.ni = parseInt(params.ICV, 10);
+      data.pi = 5;
     }
 
     bids.push({
