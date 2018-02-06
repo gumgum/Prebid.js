@@ -119,6 +119,7 @@ function buildRequests (validBidRequests) {
       tmax: timeout,
       tId: transactionId,
       pi: data.pi,
+      selector: params.selector,
       sizes: bidRequest.sizes,
       url: BID_ENDPOINT,
       method: 'GET',
