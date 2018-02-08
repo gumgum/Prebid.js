@@ -37,7 +37,8 @@
           bids: [{
             bidder: 'gumgum',
             params: {
-              ICV: '202'
+              ICV: '202',
+              selector: '#native-article >  p:nth-child(2)'
             }
           }]
 
@@ -136,6 +137,11 @@
     <script type='text/javascript'>
       googletag.cmd.push(function() { googletag.display('div-gpt-ad-1460505748561-2'); });
     </script>
+  </div>
+  <h5>BidRequest selector</h5>
+  <div id="native-article">
+    <p>Paragraph 1</p>
+    <p>Paragraph 2</p>
   </div>
   </body>
   </html>
