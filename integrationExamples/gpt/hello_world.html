@@ -14,7 +14,7 @@
 <html>
   <head>
       <script>
-        var PREBID_TIMEOUT = 700;
+        var PREBID_TIMEOUT = 1000;
 
         var adUnits = [{
           code: 'div-gpt-ad-1460505748561-0',
@@ -37,8 +37,7 @@
           bids: [{
             bidder: 'gumgum',
             params: {
-              ICV: '202',
-              selector: '#native-article >  p:nth-child(2)'
+              inScreen: 'ggumtest'
             }
           }]
 
@@ -51,7 +50,8 @@
           bids: [{
             bidder: 'gumgum',
             params: {
-              inScreen: 'ggumtest'
+              ICV: 202,
+              selector: '#native-article >  p:nth-child(2)'
             }
           }]
 

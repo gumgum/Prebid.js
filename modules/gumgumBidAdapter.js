@@ -90,7 +90,11 @@ function isBidRequestValid (bid) {
  * @return ServerRequest Info describing the request to the server.
  */
 function buildRequests (validBidRequests) {
+  const browserParams = _getBrowserParams()
+  const eAdBuyId = (browserParams.pu.match(/#ggad=(.+)$/) || [null, undefined])[1]
+  const ai = (browserParams.pu.match(/#adBuyId=(.+)$/) || [null, undefined])[1]
   const bids = [];
+
   utils._each(validBidRequests, bidRequest => {
     const timeout = config.getConfig('bidderTimeout');
     const {
@@ -98,7 +102,10 @@ function buildRequests (validBidRequests) {
       params = {},
       transactionId
     } = bidRequest;
-    const data = {}
+    const data = {
+      eAdBuyId,
+      ai
+    }
 
     if (params.inScreen) {
       data.t = params.inScreen;
@@ -109,7 +116,6 @@ function buildRequests (validBidRequests) {
       data.pi = 3;
     }
     if (params.ICV) {
-      console.log('params.ICV')
       data.ni = parseInt(params.ICV, 10);
       data.pi = 5;
     }
