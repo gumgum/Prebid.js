@@ -109,7 +109,6 @@ function buildRequests (validBidRequests) {
       data.pi = 3;
     }
     if (params.ICV) {
-      console.log('params.ICV')
       data.ni = parseInt(params.ICV, 10);
       data.pi = 5;
     }
