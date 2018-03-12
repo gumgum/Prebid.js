@@ -10,7 +10,7 @@
 <html>
   <head>
       <script>
-        var PREBID_TIMEOUT = 2000;
+        var PREBID_TIMEOUT = 7000;
 
         var adUnits = [{
           code: 'div-gpt-ad-1460505748561-0',
@@ -55,6 +55,15 @@
 
         var pbjs = pbjs || {};
         pbjs.que = pbjs.que || [];
+
+        pbjs.bidderSettings = {
+          gumgum: {
+            bidCpmAdjustment : function(bidCpm){
+              // adjust the bid in real time before the auction takes place
+              return 2;
+            }
+          }
+        };
 
       </script>
 
