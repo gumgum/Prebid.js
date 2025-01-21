@@ -1035,7 +1035,7 @@ describe('gumgumAdapter', function () {
       expect(videoBidResponse.vastXml).to.exist;
     });
 
-    it('should encode a string with an emdash character without failing', function () {
+    it('should encode a string containing a non-Latin character without failing', function () {
       let serverResponse = {
         'ad': {
           'id': 2065333,
@@ -1057,7 +1057,6 @@ describe('gumgumAdapter', function () {
       }
 
       let result = spec.interpretResponse({ body: serverResponse }, bidRequest);
-      console.log(JSON.stringify(result));
       expect(result[0].ad).to.exist;
       expect(result[0].ad).to.contain('This is a test string with an emdash – character');
 
