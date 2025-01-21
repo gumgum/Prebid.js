@@ -110,7 +110,7 @@ function _getBrowserParams(topWindowUrl, mosttopLocation) {
 
 /**
  * Some bid responses have been observed to contain non-Latin characters, which causes the browser
- * to throw an error when trying to decode the base64 string using only the atob function.
+ * to throw an error when trying to base64 encode a string using only the atob function.
  * @param {*} str
  * @returns {string} base64 encoded string
  */
