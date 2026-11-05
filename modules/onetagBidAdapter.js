@@ -8,7 +8,6 @@ import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { ajax } from '../src/ajax.js';
 import { deepClone, logError, deepAccess, getWinDimensions } from '../src/utils.js';
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
-import { toOrtbNativeRequest } from '../src/native.js';
 import { getConnectionInfo } from '../libraries/connectionInfo/connectionUtils.js';
 import { getAdUnitElement } from '../src/utils/adUnits.js';
 
@@ -59,9 +58,8 @@ export function isValid(type, bid) {
   } else if (type === NATIVE) {
     if (typeof bid.mediaTypes.native !== 'object' || bid.mediaTypes.native === null) return false;
     if (!isNativeOrtbVersion(bid)) {
-      if (bid.nativeParams === undefined) return false;
-      const ortbConversion = toOrtbNativeRequest(bid.nativeParams);
-      return ortbConversion && ortbConversion.assets && Array.isArray(ortbConversion.assets) && ortbConversion.assets.length > 0 && ortbConversion.assets.every(asset => isValidAsset(asset));
+      const assets = bid.nativeOrtbRequest?.assets;
+      return Array.isArray(assets) && assets.length > 0 && assets.every(asset => isValidAsset(asset));
     }
 
     let isValidAssets = false;
@@ -133,6 +131,12 @@ function buildRequests(validBidRequests, bidderRequest) {
   }
   if (bidderRequest && bidderRequest.ortb2) {
     payload.ortb2 = bidderRequest.ortb2;
+  }
+  const tmax = parseInt(bidderRequest && bidderRequest.timeout, 10);
+  if (!isNaN(tmax)) {
+    // Mirror core's ORTB converter: the auction timeout wins over any publisher-set
+    // `ortb2.tmax`. Shallow-copy first, `bidderRequest.ortb2` is shared with every bid.
+    payload.ortb2 = { ...payload.ortb2, tmax };
   }
   if (validBidRequests && validBidRequests.length !== 0 && validBidRequests[0].userIdAsEids) {
     payload.userId = validBidRequests[0].userIdAsEids;
@@ -296,7 +300,7 @@ function getPageInfo(bidderRequest) {
     timing: getTiming(),
     version: {
       prebid: '$prebid.version$',
-      adapter: '1.1.8'
+      adapter: '1.1.9'
     }
   };
 }
@@ -332,10 +336,9 @@ function requestsToBids(bidRequests) {
     nativeObj['type'] = NATIVE + NATIVE_SUFFIX;
     nativeObj['mediaTypeInfo'] = deepClone(bidRequest.mediaTypes.native);
     if (!isNativeOrtbVersion(bidRequest)) {
-      const ortbConversion = toOrtbNativeRequest(bidRequest.nativeParams);
       nativeObj['mediaTypeInfo'] = {};
       nativeObj['mediaTypeInfo'].adTemplate = bidRequest.nativeParams.adTemplate;
-      nativeObj['mediaTypeInfo'].ortb = ortbConversion;
+      nativeObj['mediaTypeInfo'].ortb = bidRequest.nativeOrtbRequest;
     }
     nativeObj['priceFloors'] = getBidFloor(bidRequest, NATIVE, nativeObj['sizes']);
     return nativeObj;

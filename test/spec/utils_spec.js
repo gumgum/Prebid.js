@@ -13,6 +13,8 @@ import {
 } from 'src/utils.js';
 import { convertCamelToUnderscore } from '../../libraries/appnexusUtils/anUtils.js';
 import * as winDimensions from '../../src/utils/winDimensions.js';
+import * as layoutEpoch from '../../src/utils/layoutEpoch.js';
+import { compressDataWithGZip, isGzipCompressionSupported } from '../../src/utils/gzip.js';
 
 var assert = require('assert');
 
@@ -203,6 +205,34 @@ describe('Utils', function () {
       it(`can parse ${t}`, () => {
         expect(sizesToSizeTuples(input)).to.eql(out);
       });
+    });
+  });
+
+  describe('isArrayOfNums', () => {
+    it('rejects sparse arrays', () => {
+      // eslint-disable-next-line no-sparse-arrays
+      expect(utils.isArrayOfNums([, 250], 2)).to.be.false;
+    });
+  });
+
+  describe('validateSizes', () => {
+    Object.entries({
+      'single size': [[300, 250], [[300, 250]]],
+      'array of sizes': [[[300, 250], [728, 90]], [[300, 250], [728, 90]]],
+      'array with an invalid size': [[[300, 250], [728, '90']], []],
+      // eslint-disable-next-line no-sparse-arrays
+      'sparse array of sizes': [[[300, 250], , [728, 90]], []],
+      'all-holes array': [new Array(2), []],
+      'empty array': [[], []],
+      'non-array': ['300x250', []],
+    }).forEach(([t, [input, expected]]) => {
+      it(`handles ${t}`, () => {
+        expect(utils.validateSizes(input)).to.eql(expected);
+      });
+    });
+
+    it('rejects arrays not matching targLength', () => {
+      expect(utils.validateSizes([[300, 250], [728, 90]], 1)).to.eql([]);
     });
   });
 
@@ -563,6 +593,15 @@ describe('Utils', function () {
     it('return iframe - style', function () {
       assert.ok(output.style);
     });
+
+    it('lets attrs and style override the invisible defaults', function () {
+      const frame = utils.createInvisibleIframe(document, { src: 'https://example.com/', sandbox: 'allow-scripts' }, { width: '1px' });
+      assert.equal(frame.src, 'https://example.com/');
+      assert.equal(frame.getAttribute('sandbox'), 'allow-scripts');
+      assert.equal(frame.style.width, '1px');
+      assert.equal(frame.style.display, 'none');
+      assert.equal(frame.height, '0');
+    });
   });
 
   describe('polyfill test', function () {
@@ -659,6 +698,26 @@ describe('Utils', function () {
       assert.deepEqual(builtObject, {
         mediaType: 'video',
         comeWithMe: 'ifuwant2live',
+      });
+    });
+
+    it('preserves falsy values, but omits null and undefined', function () {
+      const params = {
+        enabled: false,
+        count: 0,
+        label: '',
+        optional: null,
+        unset: undefined
+      };
+
+      const actual = utils.getDefinedParams(params, [
+        'enabled', 'count', 'label', 'optional', 'unset', 'missing'
+      ]);
+
+      assert.deepEqual(actual, {
+        enabled: false,
+        count: 0,
+        label: ''
       });
     });
   });
@@ -1281,12 +1340,13 @@ describe('Utils', function () {
       expect(deepEqual({ outer: obj }, { outer: new Typed(obj) }, { checkTypes: true })).to.be.false;
     });
     it('should work when adding properties to the prototype of Array', () => {
-      after(function () {
-        delete Array.prototype.unitTestTempProp;
-      });
       // eslint-disable-next-line no-extend-native
       Array.prototype.unitTestTempProp = 'testing';
-      expect(deepEqual([], [])).to.be.true;
+      try {
+        expect(deepEqual([], [])).to.be.true;
+      } finally {
+        delete Array.prototype.unitTestTempProp;
+      }
     });
 
     describe('cyrb53Hash', function() {
@@ -1348,9 +1408,14 @@ describe('Utils', function () {
   });
 
   describe('getUnixTimestampFromNow', () => {
+    let nowStub;
+    afterEach(() => {
+      nowStub?.restore();
+    });
+
     it('correctly obtains unix timestamp', () => {
       const nowValue = new Date('2024-01-01').valueOf();
-      sinon.stub(Date, 'now').returns(nowValue);
+      nowStub = sinon.stub(Date, 'now').returns(nowValue);
       let val = utils.getUnixTimestampFromNow();
       expect(val).equal(nowValue);
 
@@ -1421,52 +1486,11 @@ describe('Utils', function () {
   });
 
   describe('isGzipCompressionSupported', () => {
-    let sandbox;
+    it('should validate a gzip round trip and cache the result', async () => {
+      const firstCall = isGzipCompressionSupported();
+      const secondCall = isGzipCompressionSupported();
 
-    beforeEach(() => {
-      sandbox = sinon.createSandbox();
-      sandbox.stub(utils, 'isGzipCompressionSupported').callsFake((() => {
-        let cachedResult;
-        return function () {
-          if (cachedResult !== undefined) {
-            return cachedResult;
-          }
-          try {
-            if (typeof window.CompressionStream === 'undefined') {
-              cachedResult = false;
-            } else {
-              (() => new window.CompressionStream('gzip'))();
-              cachedResult = true;
-            }
-          } catch (error) {
-            cachedResult = false;
-          }
-          return cachedResult;
-        };
-      })());
-    });
-
-    afterEach(() => {
-      sandbox.restore();
-    });
-
-    it('should return true if CompressionStream is available', () => {
-      window.CompressionStream = class {}; // Mock valid CompressionStream
-      expect(utils.isGzipCompressionSupported()).to.be.true;
-    });
-
-    it('should return false if CompressionStream is undefined', () => {
-      delete window.CompressionStream; // Simulate an unsupported environment
-      expect(utils.isGzipCompressionSupported()).to.be.false;
-    });
-
-    it('should cache the result after first execution', () => {
-      window.CompressionStream = class {}; // Mock valid CompressionStream
-
-      const firstCall = utils.isGzipCompressionSupported();
-      const secondCall = utils.isGzipCompressionSupported();
-
-      expect(firstCall).to.equal(secondCall); // Ensure memoization is working
+      expect(firstCall).to.equal(secondCall);
     });
   });
 
@@ -1501,7 +1525,7 @@ describe('Utils', function () {
 
     it('should compress data correctly when CompressionStream is available', async () => {
       const data = JSON.stringify({ test: 'data' });
-      const compressedData = await utils.compressDataWithGZip(data);
+      const compressedData = await compressDataWithGZip(data);
 
       expect(compressedData).to.be.instanceOf(Uint8Array);
       expect(compressedData.length).to.be.greaterThan(0);
@@ -1510,7 +1534,7 @@ describe('Utils', function () {
 
     it('should handle non-string input by stringifying it', async () => {
       const nonStringData = { test: 'data' };
-      const compressedData = await utils.compressDataWithGZip(nonStringData);
+      const compressedData = await compressDataWithGZip(nonStringData);
 
       expect(compressedData).to.be.instanceOf(Uint8Array);
       expect(compressedData.length).to.be.greaterThan(0);
@@ -1551,6 +1575,14 @@ describe('memoize', () => {
     mem('arg');
     mem.clear();
     expect(mem('arg')).to.eql(['arg']);
+    expect(fn.callCount).to.equal(2);
+  });
+
+  it('can invalidate specific items with invalidate', () => {
+    const mem = memoize(fn, (a, b) => `${a}:${b}`);
+    mem('arg1', 'arg2');
+    mem.invalidate('arg1', 'arg2');
+    mem('arg1', 'arg2');
     expect(fn.callCount).to.equal(2);
   });
 
@@ -1613,19 +1645,19 @@ describe('getWinDimensions', () => {
     clock.restore();
   });
 
-  it('should clear cache once per 20ms', () => {
+  it('should cache values for the rest of the task, however long it takes, and clear them once it ends', async () => {
+    layoutEpoch.endLayoutEpoch();
     const resetWinDimensionsSpy = sinon.spy(winDimensions.internal.winDimensions, 'reset');
-    expect(getWinDimensions().innerHeight).to.exist;
-    clock.tick(1);
-    expect(getWinDimensions().innerHeight).to.exist;
-    clock.tick(1);
-    expect(getWinDimensions().innerHeight).to.exist;
-    clock.tick(1);
-    expect(getWinDimensions().innerHeight).to.exist;
-    sinon.assert.calledOnce(resetWinDimensionsSpy);
-    clock.tick(18);
-    expect(getWinDimensions().innerHeight).to.exist;
-    sinon.assert.calledTwice(resetWinDimensionsSpy);
+    try {
+      expect(getWinDimensions().innerHeight).to.exist;
+      clock.tick(100);
+      expect(getWinDimensions().innerHeight).to.exist;
+      sinon.assert.notCalled(resetWinDimensionsSpy);
+      await Promise.resolve();
+      sinon.assert.calledOnce(resetWinDimensionsSpy);
+    } finally {
+      resetWinDimensionsSpy.restore();
+    }
   });
 });
 
@@ -1711,17 +1743,5 @@ describe('polite sync helpers', () => {
     window.Request = undefined;
     utils.politeTriggerPixel('http://example.com/pixel');
     expect(window.fetch.called).to.equal(false);
-  });
-
-  it('uses background scheduling for politeInsertUserSyncIframe', () => {
-    window.scheduler = {
-      postTask: sinon.stub().callsFake((task) => {
-        task();
-        return Promise.resolve();
-      })
-    };
-
-    utils.politeInsertUserSyncIframe('http://example.com/iframe');
-    expect(window.scheduler.postTask.calledOnce).to.equal(true);
   });
 });

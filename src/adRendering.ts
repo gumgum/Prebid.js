@@ -5,8 +5,8 @@ import {
   insertElement,
   logError,
   logWarn,
+  politeTriggerPixel,
   replaceMacros,
-  triggerPixel
 } from './utils.js';
 import * as events from './events.js';
 import { AD_RENDER_FAILED_REASON, BID_STATUS, EVENTS, MESSAGES, PB_LOCATOR } from './constants.js';
@@ -59,7 +59,7 @@ declare module './events' {
 
 export const markWinningBid = hook('sync', function (bid) {
   (parseEventTrackers(bid.eventtrackers)[EVENT_TYPE_WIN]?.[TRACKER_METHOD_IMG] || [])
-    .forEach(url => triggerPixel(url));
+    .forEach(url => politeTriggerPixel(url));
   events.emit(BID_WON, bid);
   auctionManager.addWinningBid(bid);
 });
@@ -293,8 +293,15 @@ doRender.before(function (next, args) {
   // run renderers from a high priority hook to allow the video module to insert itself between this and "normal" rendering.
   const { bidResponse, doc } = args;
   if (isRendererRequired(bidResponse.renderer) && !getSafeRenderer(bidResponse)) {
-    executeRenderer(bidResponse.renderer, bidResponse, doc);
-    emitAdRenderSucceeded({ doc, bid: bidResponse, id: bidResponse.adId });
+    executeRenderer(bidResponse.renderer, bidResponse, doc).then(
+      () => emitAdRenderSucceeded({ doc, bid: bidResponse, id: bidResponse.adId }),
+      (e) => emitAdRenderFail({
+        reason: AD_RENDER_FAILED_REASON.EXCEPTION,
+        message: e?.message ?? 'Could not load renderer script',
+        bid: bidResponse,
+        id: bidResponse.adId
+      })
+    );
     next.bail();
   } else {
     next(args);
@@ -419,7 +426,13 @@ export const renderAdDirect = yieldsIf(() => !legacyRender, function renderAdDir
   }
 
   function renderFn(adData) {
-    if (adData.ad && legacyRender) {
+    // This condition was authored by a bot (Claude Code).
+    // `legacyRender` is meant for creatives that break on the extra iframe added in 10.12; a safe
+    // renderer's script is written against the `pbRenderInFrame` contract and expects to run inside
+    // that frame, so it is never one of those. Writing the markup here would also bypass doRender's
+    // PREVENT_WRITING_ON_MAIN_DOCUMENT guard: for a main-document or video bid, `safeRenderer.url`
+    // is the only thing that exempted this bid from it.
+    if (adData.ad && legacyRender && !getSafeRenderer(bid)) {
       doc.write(adData.ad);
       doc.close();
       emitAdRenderSucceeded({ doc, bid, id: bid.adId });

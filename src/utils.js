@@ -2,7 +2,7 @@ import { config } from './config.js';
 
 import { PbPromise } from './utils/promise.js';
 import deepAccess from 'dlv/index.js';
-import { isArray, isFn, isStr, isPlainObject } from './utils/objects.js';
+import { isArray, isFn, isPlainObject, isStr } from './utils/objects.js';
 import * as logging from './utils/logging.js';
 import * as debug from './utils/debug.js';
 
@@ -10,6 +10,7 @@ export { deepAccess };
 export { dset as deepSetValue } from 'dset';
 export * from './utils/objects.js';
 export { getWinDimensions, resetWinDimensions, getScreenOrientation } from './utils/winDimensions.js';
+export { compressDataWithGZip, isGzipCompressionSupported } from './utils/gzip.js';
 
 // many tests stub out these methods, which does not work if we use `export from` - hence the roundabout rebinding
 export const logInfo = logging.logInfo;
@@ -26,7 +27,6 @@ export const internal = {
   getWindowTop,
   canAccessWindowTop,
   getWindowLocation,
-  insertUserSyncIframe,
   insertElement,
   isFn,
   triggerPixel,
@@ -228,17 +228,19 @@ export const createIframe = (() => {
   };
 })();
 
-export function createInvisibleIframe() {
-  return createIframe(document, {
+export function createInvisibleIframe(doc = document, attrs = {}, style = {}) {
+  return createIframe(doc, {
     id: getUniqueIdentifierStr(),
     width: 0,
     height: 0,
-    src: 'about:blank'
+    src: 'about:blank',
+    ...attrs
   }, {
     display: 'none',
     height: '0px',
     width: '0px',
-    border: '0px'
+    border: '0px',
+    ...style
   });
 }
 
@@ -382,10 +384,6 @@ export function politeTriggerPixel(url, credentials = 'include') {
   runBackgroundTask(triggerSync);
 }
 
-export function politeInsertUserSyncIframe(url) {
-  runBackgroundTask(() => insertUserSyncIframe(url));
-}
-
 export function triggerPixel(url, done, timeout) {
   const img = new Image();
   if (done && internal.isFn(done)) {
@@ -428,28 +426,6 @@ export function insertHtmlIntoIframe(htmlCode) {
     doc.write(htmlCode);
     doc.close();
   })(iframe.contentWindow.document);
-}
-
-/**
- * Inserts empty iframe with the specified `url` for cookie sync
- * @param  {string} url URL to be requested
- * @param  {function} [done] an optional exit callback, used when this usersync pixel is added during an async process
- * @param  {Number} [timeout] an optional timeout in milliseconds for the iframe to load before calling `done`
- */
-export function insertUserSyncIframe(url, done, timeout) {
-  if (!url) return;
-  const iframe = createIframe(document, {
-    sandbox: 'allow-scripts allow-same-origin',
-    src: url,
-  }, {
-    width: '0px',
-    height: '0px',
-    display: 'none'
-  });
-  if (done && internal.isFn(done)) {
-    waitForElementToLoad(iframe, timeout).then(done);
-  }
-  internal.insertElement(iframe, document, 'html', true);
 }
 
 /**
@@ -1079,6 +1055,9 @@ export function memoize(fn, key = function (arg) { return arg; }) {
     return cache.get(cacheKey);
   };
   memoized.clear = cache.clear.bind(cache);
+  memoized.invalidate = function () {
+    cache.delete(key.apply(this, arguments));
+  };
   return memoized;
 }
 
@@ -1228,48 +1207,6 @@ export function triggerNurlWithCpm(bid, cpm) {
       /\${AUCTION_PRICE}/,
       cpm
     );
-    triggerPixel(bid.nurl);
+    politeTriggerPixel(bid.nurl);
   }
-}
-
-// To ensure that isGzipCompressionSupported() doesn’t become an overhead, we have used memoization to cache the result after the first execution.
-// This way, even if the function is called multiple times, it will only perform the actual check once and return the cached result in subsequent calls.
-export const isGzipCompressionSupported = (function () {
-  let cachedResult; // Store the result
-
-  return function () {
-    if (cachedResult !== undefined) {
-      return cachedResult; // Return cached result if already computed
-    }
-
-    try {
-      if (typeof window.CompressionStream === 'undefined') {
-        cachedResult = false;
-      } else {
-        (() => new window.CompressionStream('gzip'))();
-        cachedResult = true;
-      }
-    } catch (error) {
-      cachedResult = false;
-    }
-
-    return cachedResult;
-  };
-})();
-
-// Make sure to use isGzipCompressionSupported before calling this function
-export async function compressDataWithGZip(data) {
-  if (typeof data !== 'string') { // TextEncoder (below) expects a string
-    data = JSON.stringify(data);
-  }
-
-  const encoder = new TextEncoder();
-  const encodedData = encoder.encode(data);
-  const compressedStream = new Blob([encodedData])
-    .stream()
-    .pipeThrough(new window.CompressionStream('gzip'));
-
-  const compressedBlob = await new Response(compressedStream).blob();
-  const compressedArrayBuffer = await compressedBlob.arrayBuffer();
-  return new Uint8Array(compressedArrayBuffer);
 }

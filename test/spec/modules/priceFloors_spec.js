@@ -731,7 +731,7 @@ describe('the price floors module', function () {
       expect(floorData.skipped).to.equal(true);
     });
 
-    it('should should use the skipRate if its not available in the data property ', function() {
+    it('should use the skipRate if it\'s not available in the data property', function() {
       // this will force skipped to be true
       floorConfig.skipRate = 101;
       handleSetFloorsConfig(floorConfig);
@@ -777,7 +777,7 @@ describe('the price floors module', function () {
     afterEach(function() {
       exposedAdUnits = undefined;
     });
-    it('should not do floor stuff if no resulting floor object can be resolved for auciton', function () {
+    it('should not do floor stuff if no resulting floor object can be resolved for auction', function () {
       handleSetFloorsConfig({
         ...basicFloorConfig,
         data: undefined
@@ -840,7 +840,7 @@ describe('the price floors module', function () {
         noFloorSignaled: true
       });
     });
-    it('should not do floor stuff and use first floors.data.noFloorSignalBidders if its defined betwen enforcement.noFloorSignalBidders', function() {
+    it('should not do floor stuff and use first floors.data.noFloorSignalBidders if it is defined between enforcement.noFloorSignalBidders', function() {
       handleSetFloorsConfig({
         ...basicFloorConfig,
         enforcement: {
@@ -1315,7 +1315,7 @@ describe('the price floors module', function () {
       runStandardAuction();
       validateBidRequests(false, sinon.match({ location: 'noData', skipped: true }));
     });
-    it('should dynamically add new schema fileds and functions if added via setConfig', function () {
+    it('should dynamically add new schema fields and functions if added via setConfig', function () {
       let deviceSpoof;
       handleSetFloorsConfig({
         ...basicFloorConfig,
@@ -2288,6 +2288,17 @@ describe('the price floors module', function () {
       expect(reject.calledOnce).to.be.true;
       expect(returnedBidResponse).to.not.exist;
     });
+    it('does not enforce floorMin against a bid when the matching rule explicitly sets a null floor', function () {
+      _floorDataForAuction[AUCTION_ID] = utils.deepClone(basicFloorConfig);
+      // floorMin is a safety-net minimum; a null rule value means "no floor for this match" and should
+      // take precedence, exactly as it already does for getFloor() (see 'setting null as rule value' tests)
+      _floorDataForAuction[AUCTION_ID].data.floorMin = 5;
+      _floorDataForAuction[AUCTION_ID].data.values = { 'banner': null };
+      runBidResponse();
+      expect(reject.called).to.be.false;
+      expect(returnedBidResponse).to.exist;
+      expect(returnedBidResponse).to.not.haveOwnProperty('floorData');
+    });
     it('enforces floors for all bidders by default', function () {
       _floorDataForAuction[AUCTION_ID] = utils.deepClone(basicFloorConfig);
       _floorDataForAuction[AUCTION_ID].data.values = { 'banner': 1.0 };
@@ -2516,6 +2527,11 @@ describe('setting null as rule value', () => {
     adUnitId: 'tr_test_div_1',
   };
 
+  // Tests here enable the module; leaving it on adds ext.prebid.floors to later specs' PBS requests.
+  afterEach(() => {
+    handleSetFloorsConfig({ enabled: false });
+  });
+
   it('should validate for null values', function () {
     const data = utils.deepClone(nullFloorData);
     data.floorsSchemaVersion = 1;
@@ -2561,7 +2577,7 @@ describe('setting null as rule value', () => {
     handleSetFloorsConfig({ ...basicFloorConfig, floorProvider: 'floorprovider', endpoint: { url: 'http://www.fakefloorprovider.json/' } });
 
     const adUnits = [{
-      cod: 'test_div_1',
+      code: 'test_div_1',
       mediaTypes: { banner: { sizes: [[600, 300]] }, native: {} },
       bids: [{ bidder: 'someBidder', adUnitCode: 'test_div_1' }, { bidder: 'someOtherBidder', adUnitCode: 'test_div_1' }]
     }];
@@ -2570,6 +2586,11 @@ describe('setting null as rule value', () => {
       auctionId: basicBidRequest.auctionId,
       adUnits
     });
+    server.respond();
+
+    const auctionFloors = _floorDataForAuction[basicBidRequest.auctionId];
+    expect(auctionFloors, 'auction floor data should be stored').to.exist;
+    expect(auctionFloors.data.values['banner|600x300']).to.equal(null);
 
     const inputParams = { mediaType: 'banner', size: [600, 300] };
 
@@ -2587,6 +2608,8 @@ describe('Price Floors User ID Tiers', function() {
 
   afterEach(function() {
     sandbox.restore();
+    // some tests here enable the module; don't leave it on for later specs
+    handleSetFloorsConfig({ enabled: false });
   });
 
   describe('resolveTierUserIds', function() {
@@ -2606,7 +2629,7 @@ describe('Price Floors User ID Tiers', function() {
         tierOne: ['liveintent.com', 'sharedid.org'],
         tierTwo: ['pairid.com']
       };
-      const result = resolveTierUserIds(tiers, { userIdAsEid: [] });
+      const result = resolveTierUserIds(tiers, {});
       expect(result).to.deep.equal({});
     });
 

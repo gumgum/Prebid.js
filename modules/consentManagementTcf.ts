@@ -9,14 +9,14 @@ import { config } from '../src/config.js';
 import { gdprDataHandler } from '../src/adapterManager.js';
 import { registerOrtbProcessor, REQUEST } from '../src/pbjsORTB.js';
 import { enrichFPD } from '../src/fpd/enrichment.js';
-import { cmpClient } from '../libraries/cmp/cmpClient.js';
 import { configParser } from '../libraries/consentManagement/cmUtils.js';
 import { createCmpEventManager, type CmpEventManager } from '../libraries/cmp/cmpEventUtils.js';
 import { CONSENT_GDPR } from "../src/consentHandler.ts";
 import type { CMConfig } from "../libraries/consentManagement/cmUtils.ts";
-import { TCF_CMP_VERSION, type TCFConsentData } from '../libraries/consentManagement/consentUtils.js';
+import { TCF_CMP_VERSION } from '../libraries/consentManagement/consentUtils.js';
+import type { TCFConsentData } from '../src/types/consent/tcf.d.ts';
 
-export type { TCFConsentData } from '../libraries/consentManagement/consentUtils.js';
+export type { TCFConsentData } from '../src/types/consent/tcf.d.ts';
 
 export let consentConfig: any = {};
 export let gdprScope;
@@ -25,7 +25,14 @@ const CMP_VERSION = TCF_CMP_VERSION;
 
 // add new CMPs here, with their dedicated lookup function
 const cmpCallMap = {
-  'iab': lookupIabConsent,
+  'iab': {
+    api: {
+      apiName: '__tcfapi',
+      apiVersion: CMP_VERSION,
+      apiArgs: ['command', 'version', 'callback', 'parameter'],
+    },
+    lookup: lookupIabConsent
+  },
 };
 
 // CMP event manager instance for TCF
@@ -46,9 +53,6 @@ export interface TCFConfig {
 type TCFCMConfig = TCFConfig & CMConfig<TCFConsentData>;
 
 declare module '../src/consentHandler' {
-  interface ConsentData {
-    [CONSENT_GDPR]: TCFConsentData;
-  }
   interface ConsentManagementConfig {
     [CONSENT_GDPR]?: TCFCMConfig;
   }
@@ -57,7 +61,7 @@ declare module '../src/consentHandler' {
 /**
  * This function handles interacting with an IAB compliant CMP to obtain the consent information of the user.
  */
-function lookupIabConsent(setProvisionalConsent) {
+function lookupIabConsent(setProvisionalConsent, cmp) {
   return new Promise<void>((resolve, reject) => {
     function cmpResponseCallback(tcfData, success) {
       logInfo('Received a response from CMP', tcfData);
@@ -83,15 +87,6 @@ function lookupIabConsent(setProvisionalConsent) {
       }
     }
 
-    const cmp = cmpClient({
-      apiName: '__tcfapi',
-      apiVersion: CMP_VERSION,
-      apiArgs: ['command', 'version', 'callback', 'parameter'],
-    });
-
-    if (!cmp) {
-      reject(new Error('TCF2 CMP not found.'));
-    }
     if ((cmp as any).isDirect) {
       logInfo('Detected CMP API is directly accessible, calling it now...');
     } else {

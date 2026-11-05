@@ -300,6 +300,24 @@ describe('onetag', function () {
         expect(spec.isBidRequestValid(nativeBid)).to.be.false;
         expect(spec.isBidRequestValid(nativeLegacyBid)).to.be.false;
       });
+      describe('legacy native (no mediaTypes.native.ortb)', function () {
+        let legacyBid;
+        beforeEach(() => {
+          legacyBid = createBid();
+          legacyBid.mediaTypes = { native: { adTemplate: '<div></div>', title: { required: true }, image: { required: true } } };
+          legacyBid.nativeParams = legacyBid.mediaTypes.native;
+          legacyBid.nativeOrtbRequest = toOrtbNativeRequest(legacyBid.nativeParams);
+        });
+        it('Should use nativeOrtbRequest for validation', function () {
+          expect(spec.isBidRequestValid(legacyBid)).to.be.true;
+          delete legacyBid.nativeOrtbRequest;
+          expect(spec.isBidRequestValid(legacyBid)).to.be.false;
+        });
+        it('Should send nativeOrtbRequest as mediaTypeInfo.ortb', function () {
+          const data = JSON.parse(spec.buildRequests([legacyBid]).data);
+          expect(data.bids[0].mediaTypeInfo).to.eql({ adTemplate: '<div></div>', ortb: legacyBid.nativeOrtbRequest });
+        });
+      });
       it('Should return false when native.ortb if defined but it isn\'t an object', function () {
         const nativeBid = createNativeBid();
         nativeBid.mediaTypes.native.ortb = 30;
@@ -737,7 +755,7 @@ describe('onetag', function () {
       const serverRequest = spec.buildRequests([bannerBid], bidderRequest);
       const payload = JSON.parse(serverRequest.data);
       expect(payload.ortb2).to.exist;
-      expect(payload.ortb2).to.exist.and.to.deep.equal(firtPartyData);
+      expect(payload.ortb2).to.exist.and.to.deep.equal({ ...firtPartyData, tmax: 3000 });
     });
     it('Should send DSA (ortb2 field)', function () {
       const dsa = {
@@ -765,7 +783,53 @@ describe('onetag', function () {
       const serverRequest = spec.buildRequests([bannerBid], bidderRequest);
       const payload = JSON.parse(serverRequest.data);
       expect(payload.ortb2).to.exist;
-      expect(payload.ortb2).to.exist.and.to.deep.equal(dsa);
+      expect(payload.ortb2).to.exist.and.to.deep.equal({ ...dsa, tmax: 3000 });
+    });
+    it('Should send the auction timeout as ortb2.tmax', function () {
+      const bidderRequest = {
+        'bidderCode': 'onetag',
+        'auctionId': '1d1a030790a475',
+        'bidderRequestId': '22edbae2733bf6',
+        'timeout': 1200
+      };
+      const serverRequest = spec.buildRequests([bannerBid], bidderRequest);
+      const payload = JSON.parse(serverRequest.data);
+      expect(payload.ortb2.tmax).to.equal(1200);
+    });
+    it('Should let the auction timeout win over a publisher-set ortb2.tmax', function () {
+      const bidderRequest = {
+        'bidderCode': 'onetag',
+        'auctionId': '1d1a030790a475',
+        'bidderRequestId': '22edbae2733bf6',
+        'timeout': 1200,
+        'ortb2': { tmax: 500, site: { domain: 'page.example.com' } }
+      };
+      const serverRequest = spec.buildRequests([bannerBid], bidderRequest);
+      const payload = JSON.parse(serverRequest.data);
+      expect(payload.ortb2.tmax).to.equal(1200);
+      expect(payload.ortb2.site.domain).to.equal('page.example.com');
+    });
+    it('Should not set ortb2.tmax when the auction timeout is not a number', function () {
+      const bidderRequest = {
+        'bidderCode': 'onetag',
+        'auctionId': '1d1a030790a475',
+        'bidderRequestId': '22edbae2733bf6'
+      };
+      const serverRequest = spec.buildRequests([bannerBid], bidderRequest);
+      const payload = JSON.parse(serverRequest.data);
+      expect(payload.ortb2).to.be.undefined;
+    });
+    it('Should not mutate the shared ortb2 object of the bidder request', function () {
+      const ortb2 = { site: { domain: 'page.example.com' } };
+      const bidderRequest = {
+        'bidderCode': 'onetag',
+        'auctionId': '1d1a030790a475',
+        'bidderRequestId': '22edbae2733bf6',
+        'timeout': 1200,
+        ortb2
+      };
+      spec.buildRequests([bannerBid], bidderRequest);
+      expect(ortb2).to.deep.equal({ site: { domain: 'page.example.com' } });
     });
     it('Should send FLEDGE eligibility flag set to false when fledgeEnabled is not defined', function () {
       const bidderRequest = {
